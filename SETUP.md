@@ -1,10 +1,9 @@
 # Going live
 
 ## 1. Publish the site (GitHub Pages, free)
-1. Merge this branch into `main`.
-2. GitHub → repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-3. The *Deploy to GitHub Pages* workflow runs on every push to `main`.
-   Your site: **https://riyan-hx.github.io/FRZrEpo/**
+1. GitHub → repo **Settings → Pages → Build and deployment → Source: Deploy from a branch**.
+2. Branch: **main**, folder: **/ (root)** → **Save**.
+3. Every merge into `main` goes live in about a minute at **https://riyan-hx.github.io/FRZrEpo/**
 4. On your phone open that URL → **Add to Home Screen** / **Install app**.
 
 Without cloud sync, data is stored only in each browser (use Settings → Export/Import to move it).

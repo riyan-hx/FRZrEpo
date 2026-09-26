@@ -6,14 +6,14 @@
 
 const STORE_KEY = 'lumid-hq-v1';
 const THEME_KEY = 'lumid-hq-theme';
-const VENTURE_COLORS = ['#8b7bff', '#3dd6c6', '#ffb547', '#ff6b9a', '#5aa9ff', '#9be15d'];
+const VENTURE_COLORS = ['#5e5ce6', '#30b0c7', '#ff9f0a', '#ff375f', '#0a84ff', '#30d158'];
 
 const STAGES = [
-  { id: 'spark', label: 'Spark', color: '#ffb547' },
-  { id: 'exploring', label: 'Exploring', color: '#5aa9ff' },
-  { id: 'building', label: 'Building', color: '#8b7bff' },
-  { id: 'shipped', label: 'Shipped', color: '#3ddc97' },
-  { id: 'parked', label: 'Parked', color: '#8d94a8' },
+  { id: 'spark', label: 'Spark', color: '#ff9f0a' },
+  { id: 'exploring', label: 'Exploring', color: '#0a84ff' },
+  { id: 'building', label: 'Building', color: '#5e5ce6' },
+  { id: 'shipped', label: 'Shipped', color: '#30d158' },
+  { id: 'parked', label: 'Parked', color: '#8e8e93' },
 ];
 const PRIORITIES = [['p1', 'P1 · Critical'], ['p2', 'P2 · Important'], ['p3', 'P3 · Normal']];
 const RES_STATUS = [['watch', 'To watch'], ['reference', 'Reference'], ['done', 'Watched']];
@@ -57,6 +57,7 @@ const ICONS = {
   people: '<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 3.1a4 4 0 0 1 0 7.8M22 21a7 7 0 0 0-5-6.7"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   resources: '<rect x="2" y="4" width="20" height="16" rx="4"/><path d="m10 9 5 3-5 3z"/>',
+  bell: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
@@ -72,6 +73,18 @@ const ICONS = {
   upload: '<path d="M12 21V9M7 14l5-5 5 5M5 3h14"/>',
 };
 const icon = (name) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+// iOS-style gradient tiles per section
+const TILE_GRADIENTS = {
+  today: ['#0a84ff', '#5e5ce6'], ideas: ['#ffd60a', '#ff9f0a'], tasks: ['#34c759', '#00c7be'],
+  notes: ['#ffcc00', '#ff9500'], schedule: ['#ff6b5a', '#ff2d55'], resources: ['#ff375f', '#bf5af2'],
+  goals: ['#7d7aff', '#5e5ce6'], metrics: ['#64d2ff', '#0a84ff'], decisions: ['#da8fff', '#af52de'],
+  people: ['#63e6e2', '#30b0c7'], settings: ['#aeaeb2', '#636366'], bolt: ['#ff9f0a', '#ff375f'],
+  bell: ['#ff9f0a', '#ff6b00'], pin: ['#ffd60a', '#ff9f0a'],
+};
+const appIcon = (name, size = '', glyph = name) => {
+  const [a, b] = TILE_GRADIENTS[name] || TILE_GRADIENTS.today;
+  return `<span class="app-icon ${size}" style="--g:linear-gradient(160deg,${a},${b})">${icon(glyph)}</span>`;
+};
 const hydrateIcons = (root = document) => $$('[data-icon]', root).forEach((el) => { el.innerHTML = icon(el.dataset.icon); });
 
 /* ---------- Data ---------- */
@@ -442,7 +455,7 @@ function renderNav() {
   };
   $('#side-nav').innerHTML = VIEWS.map((v) => `
     <button class="nav-link ${state.view === v.id ? 'active' : ''}" data-nav="${v.id}">
-      ${icon(v.id)}<span>${v.label}</span>${counts[v.id] ? `<span class="count">${counts[v.id]}</span>` : ''}
+      ${appIcon(v.id)}<span>${v.label}</span>${counts[v.id] ? `<span class="count">${counts[v.id]}</span>` : ''}
     </button>`).join('');
 
   const moreActive = !MOBILE_TABS.includes(state.view);
@@ -499,7 +512,7 @@ function viewToday() {
 
   return `
     <div class="hero">
-      <h2>${greet} 👋</h2>
+      <h2>${greet}</h2>
       <p>${fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' })} · ${dueToday.length} due today · ${events.length} on the calendar</p>
       ${captureBox()}
     </div>
@@ -513,24 +526,24 @@ function viewToday() {
 
     <div class="grid two">
       <div class="card">
-        <div class="card-head"><h3>🎯 Focus</h3><button class="link" data-nav="tasks">All tasks →</button></div>
+        <div class="card-head">${appIcon('bolt')}<h3>Focus</h3><button class="link" data-nav="tasks">All tasks →</button></div>
         ${focus.length ? `<div class="list">${focus.map(taskRow).join('')}</div>` : empty('Clear runway', 'Nothing urgent. Plan the next big move.')}
       </div>
       <div class="card">
-        <div class="card-head"><h3>📅 Today's schedule</h3><button class="link" data-nav="schedule">Calendar →</button></div>
+        <div class="card-head">${appIcon('schedule')}<h3>Today's schedule</h3><button class="link" data-nav="schedule">Calendar →</button></div>
         ${events.length ? `<div class="list">${events.map(eventRow).join('')}</div>` : empty('No meetings today', 'Block time for deep work.')}
         ${upcoming.length ? `<p class="section-title" style="margin-top:14px">Next 7 days</p><div class="list">${upcoming.map((e) => eventRow(e, true)).join('')}</div>` : ''}
       </div>
       ${followUps.length || reviews.length ? `
       <div class="card">
-        <div class="card-head"><h3>🔔 Needs attention</h3></div>
+        <div class="card-head">${appIcon('bell')}<h3>Needs attention</h3></div>
         <div class="list">
           ${followUps.map((p) => `<div class="item"><div class="item-main" data-edit="people:${p.id}"><div class="item-title">Follow up with ${esc(p.name)}</div><div class="item-meta">${esc(p.role || '')} ${p.company ? '· ' + esc(p.company) : ''} <span class="badge warn">${relDate(p.followUp)}</span></div></div></div>`).join('')}
           ${reviews.map((d) => `<div class="item"><div class="item-main" data-edit="decisions:${d.id}"><div class="item-title">Review decision: ${esc(d.title)}</div><div class="item-meta"><span class="badge warn">${relDate(d.review)}</span></div></div></div>`).join('')}
         </div>
       </div>` : ''}
       <div class="card">
-        <div class="card-head"><h3>💡 Top ideas</h3><button class="link" data-nav="ideas">Board →</button></div>
+        <div class="card-head">${appIcon('ideas')}<h3>Top ideas</h3><button class="link" data-nav="ideas">Board →</button></div>
         ${topIdeas.length ? `<div class="list">${topIdeas.map((i) => `
           <div class="item"><div class="item-main" data-edit="ideas:${i.id}"><div class="item-title">${esc(i.title)}</div>
           <div class="item-meta">${ventureBadge(i.venture)} <span class="score">★ ${ideaScore(i).toFixed(0)}</span></div></div>
@@ -538,26 +551,26 @@ function viewToday() {
           : empty('No ideas yet', 'Capture your next big idea above.')}
       </div>
       <div class="card">
-        <div class="card-head"><h3>🗓️ Today's plan</h3><button class="link" data-day="${t}" data-go-month>Plan →</button></div>
+        <div class="card-head">${appIcon('notes')}<h3>Today's plan</h3><button class="link" data-day="${t}" data-go-month>Plan →</button></div>
         ${dayPlan ? `<div class="clip small" style="-webkit-line-clamp:6">${esc(dayPlan)}</div>` : empty('No plan yet', 'Write your top 3 outcomes for today.')}
       </div>
       ${toWatch.length ? `<div class="card">
-        <div class="card-head"><h3>🎬 Up next to watch</h3><button class="link" data-nav="resources">All →</button></div>
+        <div class="card-head">${appIcon('resources')}<h3>Up next to watch</h3><button class="link" data-nav="resources">All →</button></div>
         <div class="list">${toWatch.map((r) => `<div class="item"><span class="thumb-mini">${(PLATFORMS[r.platform] || PLATFORMS.link).emoji}</span>
           <a class="item-main" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none"><div class="item-title">${esc(r.title)}</div><div class="item-meta">${esc(hostOf(r.url))}</div></a>
           <button class="btn sm ghost" data-res-done="${r.id}">Done</button></div>`).join('')}</div>
       </div>` : ''}
-      ${pinned.map((n) => `<div class="card click" data-edit="notes:${n.id}"><div class="card-head">${icon('pin')}<h3>${esc(n.title)}</h3></div><div class="clip muted small">${esc(n.body)}</div></div>`).join('')}
+      ${pinned.map((n) => `<div class="card click" data-edit="notes:${n.id}"><div class="card-head">${appIcon('pin')}<h3>${esc(n.title)}</h3></div><div class="clip muted small">${esc(n.body)}</div></div>`).join('')}
     </div>`;
 }
 
 const CAPTURE_TYPES = [
-  { k: 'idea', label: 'Idea', emoji: '💡', ph: 'Capture an idea…' },
-  { k: 'task', label: 'Task', emoji: '✅', ph: 'e.g. Send deck to investors tomorrow !p1' },
-  { k: 'event', label: 'Event', emoji: '📅', ph: 'e.g. Meet psychologist for Lumid AI tomorrow 3pm' },
-  { k: 'note', label: 'Note', emoji: '📝', ph: 'Note title…' },
-  { k: 'decision', label: 'Decision', emoji: '⚖️', ph: 'We decided to…' },
-  { k: 'link', label: 'Link', emoji: '🔗', ph: 'Paste a reel, YouTube or article link' },
+  { k: 'idea', label: 'Idea', icon: 'ideas', ph: 'Capture an idea…' },
+  { k: 'task', label: 'Task', icon: 'tasks', ph: 'e.g. Send deck to investors tomorrow !p1' },
+  { k: 'event', label: 'Event', icon: 'schedule', ph: 'e.g. Meet psychologist for Lumid AI tomorrow 3pm' },
+  { k: 'note', label: 'Note', icon: 'notes', ph: 'Note title…' },
+  { k: 'decision', label: 'Decision', icon: 'decisions', ph: 'We decided to…' },
+  { k: 'link', label: 'Link', icon: 'resources', ph: 'Paste a reel, YouTube or article link' },
 ];
 
 function captureBox() {
@@ -568,7 +581,7 @@ function captureBox() {
       <button class="btn" type="submit" aria-label="Capture">${icon('bolt')}</button>
     </form>
     <div class="pills" role="group" aria-label="What are you capturing?">
-      ${CAPTURE_TYPES.map((c) => `<button type="button" class="pill ${c.k === 'idea' ? 'active' : ''}" data-cap-type="${c.k}">${c.emoji} ${c.label}</button>`).join('')}
+      ${CAPTURE_TYPES.map((c) => `<button type="button" class="pill ${c.k === 'idea' ? 'active' : ''}" data-cap-type="${c.k}">${icon(c.icon)}${c.label}</button>`).join('')}
     </div>
     <div class="pills sub" role="group" aria-label="Add details">
       ${extras.map(([token, label, attr]) => `<button type="button" class="pill" data-cap-token="${esc(token)}" ${attr}>${token.startsWith('#') ? '<span class="dot"></span>' : '+ '}${esc(label)}</button>`).join('')}
@@ -894,10 +907,12 @@ function viewGoals() {
 /* ---------- View: Metrics ---------- */
 function sparkline(values) {
   if (values.length < 2) return '';
+  const gid = 'sg-' + uid();
   const min = Math.min(...values), max = Math.max(...values), range = max - min || 1;
   const pts = values.map((v, i) => `${(i / (values.length - 1)) * 100},${34 - ((v - min) / range) * 30}`).join(' ');
   return `<svg class="spark" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true">
-    <polyline points="${pts}" fill="none" stroke="var(--accent-2)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`;
+    <defs><linearGradient id="${gid}" x1="0" x2="1"><stop offset="0" stop-color="#0a84ff"/><stop offset=".5" stop-color="#5e5ce6"/><stop offset="1" stop-color="#bf5af2"/></linearGradient></defs>
+    <polyline points="${pts}" fill="none" stroke="url(#${gid})" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 }
 const metricValue = (m, v) => {
   const u = (m.unit || '').trim();
@@ -1256,11 +1271,11 @@ function runSearch(q) {
     <button class="result" data-edit="${col}:${item.id}"><span class="kind">${kind}</span><span class="item-main">${esc(item.title || item.name)}</span>${ventureBadge(item.venture)}</button>`).join('');
   $('#search-results').innerHTML = html || (needle
     ? `<p class="muted small">No results for “${esc(q)}”.</p>`
-    : `<div class="more-grid">${VIEWS.map((v) => `<button class="nav-link" data-nav="${v.id}">${icon(v.id)}${v.label}</button>`).join('')}</div>`);
+    : `<div class="more-grid">${VIEWS.map((v) => `<button class="nav-link" data-nav="${v.id}">${appIcon(v.id, 'lg')}${v.label}</button>`).join('')}</div>`);
 }
 
 function openMore() {
-  openModal('More', `<div class="more-grid">${VIEWS.filter((v) => !MOBILE_TABS.includes(v.id)).map((v) => `<button class="nav-link" data-nav="${v.id}">${icon(v.id)}${v.label}</button>`).join('')}</div>`);
+  openModal('More', `<div class="more-grid">${VIEWS.filter((v) => !MOBILE_TABS.includes(v.id)).map((v) => `<button class="nav-link" data-nav="${v.id}">${appIcon(v.id, 'lg')}${v.label}</button>`).join('')}</div>`);
 }
 
 /* ---------- Toast ---------- */
@@ -1297,7 +1312,7 @@ async function importJSON(file) {
 /* ---------- Theme ---------- */
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  $('meta[name="theme-color"]').content = theme === 'light' ? '#f5f6fa' : '#0b0d12';
+  $('meta[name="theme-color"]').content = theme === 'light' ? '#f5f5f7' : '#000000';
 }
 function initTheme() {
   let saved = null;
