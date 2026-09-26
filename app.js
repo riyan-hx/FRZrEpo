@@ -58,6 +58,9 @@ const ICONS = {
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   resources: '<rect x="2" y="4" width="20" height="16" rx="4"/><path d="m10 9 5 3-5 3z"/>',
   bell: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  sparkle: '<path d="M12 2.5c.7 5 2.5 6.8 7.5 7.5-5 .7-6.8 2.5-7.5 7.5-.7-5-2.5-6.8-7.5-7.5 5-.7 6.8-2.5 7.5-7.5z" fill="currentColor" stroke="none"/>',
+  coins: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>',
+  chevron: '<path d="m9 6 6 6-6 6"/>',
   more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
@@ -79,7 +82,7 @@ const TILE_GRADIENTS = {
   notes: ['#ffcc00', '#ff9500'], schedule: ['#ff6b5a', '#ff2d55'], resources: ['#ff375f', '#bf5af2'],
   goals: ['#7d7aff', '#5e5ce6'], metrics: ['#64d2ff', '#0a84ff'], decisions: ['#da8fff', '#af52de'],
   people: ['#63e6e2', '#30b0c7'], settings: ['#aeaeb2', '#636366'], bolt: ['#ff9f0a', '#ff375f'],
-  bell: ['#ff9f0a', '#ff6b00'], pin: ['#ffd60a', '#ff9f0a'],
+  bell: ['#ff9f0a', '#ff6b00'], pin: ['#ffd60a', '#ff9f0a'], coins: ['#63e6e2', '#0fb3a3'],
 };
 const appIcon = (name, size = '', glyph = name) => {
   const [, b] = TILE_GRADIENTS[name] || TILE_GRADIENTS.today;
@@ -470,7 +473,9 @@ function renderNav() {
       ${v === 'All' ? '' : `<span class="dot" style="--c:${ventureColor(v)}"></span>`}${esc(v)}
     </button>`).join('');
   $('#venture-filter').hidden = state.view === 'settings';
-  $('#view-title').textContent = VIEWS.find((v) => v.id === state.view).label;
+  $('#view-title').innerHTML = state.view === 'today'
+    ? `<span class="brand-mark" aria-hidden="true">${icon('sparkle')}</span>Lumid`
+    : esc(VIEWS.find((v) => v.id === state.view).label);
   $('.fab').hidden = state.view === 'settings';
 }
 
@@ -512,15 +517,16 @@ function viewToday() {
 
   return `
     <div class="hero">
+      <span class="hero-spark" aria-hidden="true">${icon('sparkle')}</span>
       <h2>${greet}</h2>
       <p>${fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' })} · ${dueToday.length} due today · ${events.length} on the calendar</p>
       ${captureBox()}
     </div>
 
     <div class="grid tiles section">
-      ${statTile('Open tasks', tasks.length, overdue.length ? `<span class="delta down">${overdue.length} overdue</span>` : '<span class="muted">on track</span>', 'tasks')}
-      ${statTile('Active ideas', ideas.filter((i) => !['shipped', 'parked'].includes(i.stage)).length, `<span class="muted">${ideas.filter((i) => i.stage === 'building').length} building</span>`, 'ideas')}
-      ${statTile('Goal progress', goalAvg + '%', `<span class="muted">${goals.length} objectives</span>`, 'goals')}
+      ${statTile('Open tasks', tasks.length, overdue.length ? `<span class="delta down">${overdue.length} overdue</span>` : '<span class="muted">on track</span>', 'tasks', 'tasks')}
+      ${statTile('Active ideas', ideas.filter((i) => !['shipped', 'parked'].includes(i.stage)).length, `<span class="muted">${ideas.filter((i) => i.stage === 'building').length} building</span>`, 'ideas', 'ideas')}
+      ${statTile('Goal progress', goalAvg + '%', `<span class="muted">${goals.length} objectives</span>`, 'goals', 'goals')}
       ${byVenture(db.metrics).slice(0, 3).map(metricTile).join('')}
     </div>
 
@@ -617,8 +623,17 @@ function syncCapturePills(input) {
   input.placeholder = (CAPTURE_TYPES.find((c) => c.k === kind) || CAPTURE_TYPES[0]).ph;
 }
 
-function statTile(label, value, sub, nav) {
-  return `<div class="tile card click" data-nav="${nav}"><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${sub}</div></div>`;
+function tileHead(label, glyph) {
+  const [, color] = TILE_GRADIENTS[glyph] || TILE_GRADIENTS.today;
+  return `<div class="tile-head"><span class="tile-icon" style="--ic:${color}">${icon(glyph)}</span><span class="label">${label}</span></div>`;
+}
+
+function statTile(label, value, sub, nav, glyph) {
+  return `<div class="tile card click" data-nav="${nav}">
+    ${tileHead(label, glyph)}
+    <div class="tile-body"><div><div class="value">${value}</div><div class="delta">${sub}</div></div></div>
+    <span class="tile-chev">${icon('chevron')}</span>
+  </div>`;
 }
 
 /* ---------- View: Ideas ---------- */
@@ -911,7 +926,9 @@ function sparkline(values) {
   const min = Math.min(...values), max = Math.max(...values), range = max - min || 1;
   const pts = values.map((v, i) => `${(i / (values.length - 1)) * 100},${34 - ((v - min) / range) * 30}`).join(' ');
   return `<svg class="spark" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true">
-    <defs><linearGradient id="${gid}" x1="0" x2="1"><stop offset="0" style="stop-color:var(--accent)"/><stop offset="1" style="stop-color:var(--accent-2)"/></linearGradient></defs>
+    <defs><linearGradient id="${gid}" x1="0" x2="1"><stop offset="0" style="stop-color:var(--accent)"/><stop offset="1" style="stop-color:var(--accent-2)"/></linearGradient>
+    <linearGradient id="${gid}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--accent-2);stop-opacity:.22"/><stop offset="1" style="stop-color:var(--accent-2);stop-opacity:0"/></linearGradient></defs>
+    <polygon points="0,36 ${pts} 100,36" fill="url(#${gid}a)"/>
     <polyline points="${pts}" fill="none" stroke="url(#${gid})" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 }
 const metricValue = (m, v) => {
@@ -933,11 +950,14 @@ const sortedEntries = (m) => [...(m.entries || [])].sort((a, b) => a.date.locale
 function metricTile(m) {
   const e = sortedEntries(m);
   const last = e.at(-1);
-  return `<div class="tile card click" data-log="${m.id}">
-    <div class="label"><span class="dot" style="--c:${ventureColor(m.venture)}"></span>${esc(m.name)}</div>
-    <div class="value">${last ? metricValue(m, last.value) : '—'}</div>
-    <div class="delta">${metricDelta(m) || '<span class="muted">log a value</span>'}</div>
-    ${sparkline(e.map((x) => x.value))}
+  const glyph = ['$', '€', '£', '₹'].includes((m.unit || '').trim()) ? 'coins' : /user|people|customer|member/i.test(m.name) ? 'people' : 'metrics';
+  return `<div class="tile card click metric-tile" data-log="${m.id}">
+    ${tileHead(esc(m.name), glyph)}
+    <div class="tile-body">
+      <div><div class="value">${last ? metricValue(m, last.value) : '—'}</div><div class="delta">${metricDelta(m) || '<span class="muted">log a value</span>'}</div></div>
+      ${sparkline(e.map((x) => x.value))}
+    </div>
+    <span class="tile-chev">${icon('chevron')}</span>
   </div>`;
 }
 
