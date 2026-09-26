@@ -1,14 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#6a58f5"/>
-      <stop offset="1" stop-color="#0fb3a3"/>
-    </linearGradient>
-    <radialGradient id="bg" cx="0" cy="0" r="1" gradientTransform="matrix(520 0 0 520 0 0)" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ece9ff"/><stop offset="1" stop-color="#ffffff"/>
-    </radialGradient>
-  </defs>
-  <rect width="512" height="512" rx="115" fill="url(#bg)"/>
-  <path d="M196 150v212h128" fill="none" stroke="url(#g)" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="340" cy="170" r="26" fill="#0fb3a3"/>
+  <rect width="512" height="512" rx="112" fill="#17171c"/>
+  <path d="M196 150v212h128" fill="none" stroke="#fff" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="340" cy="172" r="26" fill="#ff7759"/>
 </svg>
