@@ -532,7 +532,7 @@ function viewToday() {
       <div class="card">
         <div class="card-head">${appIcon('schedule')}<h3>Today's schedule</h3><button class="link" data-nav="schedule">Calendar →</button></div>
         ${events.length ? `<div class="list">${events.map(eventRow).join('')}</div>` : empty('No meetings today', 'Block time for deep work.')}
-        ${upcoming.length ? `<p class="section-title" style="margin-top:14px">Next 7 days</p><div class="list">${upcoming.map((e) => eventRow(e, true)).join('')}</div>` : ''}
+        ${upcoming.length ? `<p class="section-title" style="margin-top:12px">Next 7 days</p><div class="list">${upcoming.map((e) => eventRow(e, true)).join('')}</div>` : ''}
       </div>
       ${followUps.length || reviews.length ? `
       <div class="card">
@@ -635,13 +635,13 @@ function viewIdeas() {
         <div class="card click" draggable="true" data-drag="${i.id}" data-edit="ideas:${i.id}">
           <div class="idea-title">${esc(i.title)}</div>
           ${i.body ? `<div class="clip muted small">${esc(i.body)}</div>` : ''}
-          <div class="row" style="margin-top:10px">
+          <div class="row" style="margin-top:8px">
             ${ventureBadge(i.venture)}
             <span class="small muted">Impact ${i.impact} · Effort ${i.effort}</span>
             <span class="spacer"></span><span class="score" title="Score">★ ${ideaScore(i).toFixed(0)}</span>
           </div>
-          <div class="row" style="margin-top:10px">
-            <select class="stage-select" data-stage="${i.id}" aria-label="Move to stage" style="padding:6px 10px;font-size:13px;flex:1">
+          <div class="row" style="margin-top:8px">
+            <select class="stage-select" data-stage="${i.id}" aria-label="Move to stage" style="padding:4px 8px;font-size:13px;flex:1">
               ${STAGES.map((x) => `<option value="${x.id}" ${x.id === i.stage ? 'selected' : ''}>${x.label}</option>`).join('')}
             </select>
             ${i.stage !== 'shipped' ? `<button class="btn sm" data-action="idea-to-task" data-id="${i.id}">Implement</button>` : ''}
@@ -701,7 +701,7 @@ function viewTasks() {
   ].filter(([, l]) => l.length);
   return `<div class="toolbar">${seg}</div>
     ${groups.length ? groups.map(([name, list]) => `
-      <div class="section"><p class="section-title">${name} · ${list.length}</p><div class="card" style="padding:4px 14px"><div class="list">${list.map(taskRow).join('')}</div></div></div>`).join('')
+      <div class="section"><p class="section-title">${name} · ${list.length}</p><div class="card" style="padding:4px 12px"><div class="list">${list.map(taskRow).join('')}</div></div></div>`).join('')
       : empty('Inbox zero', 'No open tasks. Tap + to add one.')}`;
 }
 
@@ -846,7 +846,7 @@ function scheduleDeadlines() {
   ].map(([name, fn]) => [name, items.filter((i) => fn(i.date))]).filter(([, l]) => l.length);
   if (!groups.length) return empty('No deadlines', 'Add launches, investor updates, filing dates… Tap “+ Deadline”.');
   return groups.map(([name, list]) => `<div class="section"><p class="section-title">${name} · ${list.length}</p>
-    <div class="card" style="padding:4px 14px"><div class="list">${list.map((i) => i.html).join('')}</div></div></div>`).join('');
+    <div class="card" style="padding:4px 12px"><div class="list">${list.map((i) => i.html).join('')}</div></div></div>`).join('');
 }
 
 function deadlineRow(date, title, meta, edit) {
@@ -891,7 +891,7 @@ function viewGoals() {
       <div class="row" style="flex-wrap:nowrap;align-items:flex-start">
         <div class="item-main" data-edit="goals:${g.id}">
           <h3 style="font-size:16px">${esc(g.title)}</h3>
-          <div class="row" style="margin-top:6px">${ventureBadge(g.venture)}<span class="small muted">${esc(g.quarter || '')}</span></div>
+          <div class="row" style="margin-top:4px">${ventureBadge(g.venture)}<span class="small muted">${esc(g.quarter || '')}</span></div>
         </div>
         <div class="ring" style="--p:${p}"><span>${p}%</span></div>
       </div>
@@ -954,7 +954,7 @@ function viewMetrics() {
       <div class="row" style="align-items:baseline"><span class="tile value" style="border:0;padding:0;background:none">${last ? metricValue(m, last.value) : '—'}</span>${metricDelta(m)}</div>
       ${sparkline(e.map((x) => x.value))}
       ${pct !== null ? `<div class="kr"><div class="kr-row"><span class="muted">Target ${metricValue(m, m.target)}</span><b>${pct}%</b></div><div class="progress"><span style="width:${pct}%"></span></div></div>` : ''}
-      <div class="row" style="margin-top:14px">
+      <div class="row" style="margin-top:12px">
         <span class="small muted">${e.length} entries${last ? ' · last ' + relDate(last.date).toLowerCase() : ''}</span><span class="spacer"></span>
         <button class="btn sm" data-log="${m.id}">${icon('plus')} Log value</button>
       </div>
@@ -1085,9 +1085,9 @@ function resourceCard(r) {
     <div class="item-main" data-edit="resources:${r.id}">
       <div class="idea-title clip2">${esc(r.title)}</div>
       <div class="small muted">${esc(r.author || hostOf(r.url))}</div>
-      ${r.notes ? `<div class="clip small muted" style="margin-top:6px">${esc(r.notes)}</div>` : ''}
+      ${r.notes ? `<div class="clip small muted" style="margin-top:4px">${esc(r.notes)}</div>` : ''}
     </div>
-    <div class="row" style="margin-top:10px">
+    <div class="row" style="margin-top:8px">
       ${ventureBadge(r.venture)}<span class="spacer"></span>
       <button class="btn sm ${done ? 'ghost' : ''}" data-res-done="${r.id}">${done ? 'Watched ✓' : 'Mark watched'}</button>
     </div>
