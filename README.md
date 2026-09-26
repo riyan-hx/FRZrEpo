@@ -15,7 +15,9 @@ CEO command center for **Lumid AI** and **Lumid Studio** — capture ideas, turn
 - **People** — investors, advisors, hires with follow-up reminders
 - Venture filter, global search (`⌘K` / `Ctrl+K`), light/dark theme, JSON backup/restore, installable PWA with offline support
 
-### Quick capture syntax
+### Quick capture
+Tap a pill (Idea, Task, Event, Note, Decision, Link) to set the type, and use the tag/date pills to add details. Dates and times in plain English are understood — `tomorrow 3pm`, `next fri at 10:30`, `28 sep`, `in 3 days`, `tonight`, `for 2 hours`. Events and tasks open a confirmation sheet; missing dates/times are highlighted.
+
 ```
 Voice mode for onboarding #ai                → idea tagged Lumid AI
 task: call investor #studio !tomorrow !p1   → P1 task due tomorrow

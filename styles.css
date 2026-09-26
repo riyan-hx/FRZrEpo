@@ -9,6 +9,7 @@
   --accent: #8b7bff;
   --accent-2: #3dd6c6;
   --accent-soft: rgba(139, 123, 255, 0.16);
+  --input-bg: #1d2230;
   --danger: #ff6b7a;
   --warn: #ffb547;
   --ok: #3ddc97;
@@ -32,6 +33,7 @@
   --accent: #6a58f5;
   --accent-2: #0fb3a3;
   --accent-soft: rgba(106, 88, 245, 0.1);
+  --input-bg: #ffffff;
   --shadow: 0 10px 30px rgba(20, 24, 40, 0.1);
   color-scheme: light;
 }
@@ -190,11 +192,30 @@ input[type="checkbox"] { accent-color: var(--accent); }
   border: 1px solid var(--border);
 }
 .hero h2 { font-size: 26px; letter-spacing: -0.02em; }
-.hero p { margin: 4px 0 16px; color: var(--muted); }
+.hero p { margin: 6px 0 18px; color: var(--text); opacity: .72; font-size: 15px; }
 .capture { display: flex; gap: 8px; }
 .capture input { background: var(--bg); }
-.capture-hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
-.capture-hint code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; }
+.capture-box input {
+  height: 52px; background: var(--input-bg); border-color: transparent;
+  box-shadow: 0 1px 2px rgba(20, 24, 40, .06), 0 4px 16px rgba(20, 24, 40, .06);
+}
+.capture-box input:focus { border-color: var(--accent); }
+.capture-box .btn { width: 52px; height: 52px; padding: 0; flex: none; border-radius: 14px; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.pills.sub { margin-top: 8px; }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px;
+  padding: 6px 13px; border-radius: 999px; font-size: 14px; font-weight: 500;
+  border: 1px solid var(--border); background: var(--input-bg); color: var(--text);
+  transition: background .15s, color .15s, border-color .15s;
+}
+.pill:active { transform: scale(.96); }
+.pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pills.sub .pill { min-height: 32px; font-size: 13px; color: var(--muted); background: color-mix(in srgb, var(--input-bg) 70%, transparent); border-style: dashed; }
+.pills.sub .pill[data-tone="danger"] { color: var(--danger); }
+.confirm-note { margin: 0 0 14px; padding: 10px 12px; border-radius: 12px; font-size: 14px; background: var(--accent-soft); }
+.confirm-note.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); }
+input.missing { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, var(--bg-2)); }
 
 .tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
 .tile .label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }

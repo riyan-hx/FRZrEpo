@@ -260,13 +260,113 @@ function remove(col, id) {
   });
 }
 
+/* ---------- Natural-language date & time ---------- */
+const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const MONTH_RE = '(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?';
+const pad2 = (n) => String(n).padStart(2, '0');
+const hhmm = (h, m = 0) => `${pad2(h)}:${pad2(m)}`;
+const addMinutes = (time, mins) => {
+  const [h, m] = time.split(':').map(Number);
+  const total = Math.min(h * 60 + m + mins, 23 * 60 + 59);
+  return hhmm(Math.floor(total / 60), total % 60);
+};
+
+// Pulls dates/times out of free text ("tomorrow 3pm", "next fri at 10:30", "28 sep")
+// and returns the remaining text plus ISO date and HH:MM times.
+function parseWhen(input) {
+  let t = ` ${input} `;
+  let date = '';
+  let time = '';
+  let duration = 0;
+  const base = today();
+  const take = (re, fn) => {
+    t = t.replace(re, (...m) => {
+      const hit = fn(...m);
+      return hit === false ? m[0] : ' ';
+    });
+  };
+  const futureDate = (month, day) => {
+    const y = fromISO(base).getFullYear();
+    const d = new Date(y, month, day);
+    if (d.getMonth() !== month) return false;
+    if (toISO(d) < base) d.setFullYear(y + 1);
+    return toISO(d);
+  };
+
+  // Durations: "for 30 min", "for 2 hours"
+  take(/\bfor\s+(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minutes)\b/i, (_, n, u) => {
+    duration = Math.round(Number(n) * (/^h/i.test(u) ? 60 : 1));
+  });
+
+  // Times
+  take(/\b(?:at\s+|@\s*)?(\d{1,2})(?:[:.](\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?=[\s,.!?]|$)/i, (_, h, m, ap) => {
+    let hour = Number(h) % 12;
+    if (/^p/i.test(ap)) hour += 12;
+    if (Number(h) > 12) return false;
+    time = hhmm(hour, Number(m || 0));
+  });
+  if (!time) take(/\b(?:at\s+|@\s*)?([01]?\d|2[0-3]):([0-5]\d)\b/i, (_, h, m) => { time = hhmm(Number(h), Number(m)); });
+  if (!time) take(/\b(?:at\s+)?(noon|midday|midnight)\b/i, (_, w) => { time = /mid(night)/i.test(w) ? '00:00' : '12:00'; });
+  if (!time) take(/\b(?:at|@)\s+(\d{1,2})\b(?!\s*(?:[/-]|\w))/i, (_, h) => {
+    const n = Number(h);
+    if (n > 23) return false;
+    time = hhmm(n >= 1 && n <= 7 ? n + 12 : n); // "at 3" means 3pm
+  });
+
+  // Dates
+  take(/\b(?:on\s+|by\s+)?(?:the\s+)?day\s+after\s+tom+or+ow\b/i, () => { date = addDays(base, 2); });
+  if (!date) take(/\b(?:on\s+|by\s+)?(today|tonight)\b/i, (_, w) => {
+    date = base;
+    if (/night/i.test(w) && !time) time = '20:00';
+  });
+  if (!date) take(/\b(?:on\s+|by\s+)?(tom+or+ow|tmrw?|tomm?orr?ow)\b/i, () => { date = addDays(base, 1); });
+  if (!date) take(/\bin\s+(\d+|a|an|one|two|three)\s+(day|days|week|weeks)\b/i, (_, n, u) => {
+    const num = { a: 1, an: 1, one: 1, two: 2, three: 3 }[n.toLowerCase()] || Number(n);
+    date = addDays(base, num * (/week/i.test(u) ? 7 : 1));
+  });
+  if (!date) take(/\b(?:on\s+|by\s+)?next\s+week\b/i, () => { date = addDays(base, 7); });
+  if (!date) take(/\b(?:on\s+|by\s+)?(this\s+|next\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|wed|thu(?:rs?)?|fri)\b\.?/i, (_, which, day) => {
+    const target = WEEKDAYS.findIndex((w) => w.startsWith(day.toLowerCase().slice(0, 3)));
+    const now = fromISO(base).getDay();
+    let diff = (target - now + 7) % 7;
+    if (/next/i.test(which || '') || diff === 0) diff = diff || 7;
+    date = addDays(base, diff);
+  });
+  if (!date) take(new RegExp(`\\b(?:on\\s+|by\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?${MONTH_RE}(?:\\s+(\\d{4}))?`, 'i'), (_, d, mon, y) => {
+    const iso = futureDate(MONTHS.indexOf(mon.toLowerCase()), Number(d));
+    if (!iso) return false;
+    date = y ? `${y}${iso.slice(4)}` : iso;
+  });
+  if (!date) take(new RegExp(`\\b(?:on\\s+|by\\s+)?${MONTH_RE}\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?\\b`, 'i'), (_, mon, d, y) => {
+    const iso = futureDate(MONTHS.indexOf(mon.toLowerCase()), Number(d));
+    if (!iso) return false;
+    date = y ? `${y}${iso.slice(4)}` : iso;
+  });
+  if (!date) take(/\b(\d{4})-(\d{2})-(\d{2})\b/, (m) => { date = m.trim(); });
+  if (!date) take(/\b(?:on\s+|by\s+)?(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/, (_, d, mo, y) => {
+    const iso = futureDate(Number(mo) - 1, Number(d)); // day/month
+    if (!iso) return false;
+    date = y ? `${y.length === 2 ? '20' + y : y}${iso.slice(4)}` : iso;
+  });
+
+  // Fuzzy parts of the day, only if nothing more precise was given
+  if (!time) take(/\b(?:in\s+the\s+|this\s+)?(morning|afternoon|evening)\b/i, (_, w) => {
+    time = { morning: '09:00', afternoon: '14:00', evening: '18:00' }[w.toLowerCase()];
+  });
+
+  const end = time ? addMinutes(time, duration || 60) : '';
+  const rest = t.replace(/\s+/g, ' ').replace(/\s+(at|on|by|for|@)\s*$/i, '').replace(/^\s*(at|on|by)\s+/i, '').trim();
+  return { rest, date, time, end };
+}
+
 /* ---------- Quick capture parser ---------- */
 function parseCapture(text, defaultKind = 'ideas') {
   let kind = defaultKind;
   let t = text.trim();
-  const prefix = t.match(/^(idea|task|todo|note|event|meet|decision|person|link|watch|video|reel)\s*:\s*/i);
+  const prefix = t.match(/^(idea|task|todo|note|event|meet|meeting|decision|person|link|watch|video|reel)\s*:\s*/i);
   if (prefix) {
-    kind = { idea: 'ideas', task: 'tasks', todo: 'tasks', note: 'notes', event: 'events', meet: 'events', decision: 'decisions', person: 'people', link: 'resources', watch: 'resources', video: 'resources', reel: 'resources' }[prefix[1].toLowerCase()];
+    kind = { idea: 'ideas', task: 'tasks', todo: 'tasks', note: 'notes', event: 'events', meet: 'events', meeting: 'events', decision: 'decisions', person: 'people', link: 'resources', watch: 'resources', video: 'resources', reel: 'resources' }[prefix[1].toLowerCase()];
     t = t.slice(prefix[0].length);
   }
   let venture = state.venture !== 'All' ? state.venture : 'General';
@@ -276,6 +376,11 @@ function parseCapture(text, defaultKind = 'ideas') {
     venture = v;
     return '';
   });
+  // Plain mentions like "for lumid ai" also set the venture (longest name first).
+  if (venture === 'General' || venture === state.venture) {
+    const named = [...db.ventures].sort((a, b) => b.length - a.length).find((v) => v !== 'General' && new RegExp(`\\b${v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(t));
+    if (named) venture = named;
+  }
   let due = '';
   t = t.replace(/!(today|tomorrow|week|p1|p2|p3)\b/gi, (m, w) => {
     const k = w.toLowerCase();
@@ -287,7 +392,8 @@ function parseCapture(text, defaultKind = 'ideas') {
   });
   let priority = 'p2';
   t = t.replace(/!(p[123])\b/gi, (_, p) => { priority = p.toLowerCase(); return ''; });
-  return { kind, title: t.replace(/\s+/g, ' ').trim(), venture, due, priority };
+  const when = ['events', 'tasks', 'people', 'decisions'].includes(kind) ? parseWhen(t) : { rest: t, date: '', time: '', end: '' };
+  return { kind, title: when.rest.replace(/\s+/g, ' ').trim(), venture, due: due || when.date, time: when.time, end: when.end, priority };
 }
 
 function capture(text, date = '', defaultKind = 'ideas') {
@@ -303,6 +409,16 @@ function capture(text, date = '', defaultKind = 'ideas') {
   if (!p.title) return;
   if (p.kind === 'resources') return toast('Paste a full link to save a resource');
   p.due ||= date;
+  if (p.kind === 'events') {
+    openEditor('events', null, { title: p.title, date: p.due, start: p.time, end: p.end, type: 'meeting', venture: p.venture, notes: '' },
+      { confirm: true, missing: [!p.due && 'date', !p.time && 'start'].filter(Boolean), require: ['date'] });
+    return 'confirm';
+  }
+  if (p.kind === 'tasks') {
+    openEditor('tasks', null, { title: p.title, due: p.due, priority: p.priority, venture: p.venture },
+      { confirm: true, missing: p.due ? [] : ['due'] });
+    return 'confirm';
+  }
   const base = { id: uid(), venture: p.venture, createdAt: Date.now() };
   const map = {
     ideas: { ...base, title: p.title, body: '', stage: 'spark', impact: 3, effort: 3 },
@@ -385,11 +501,7 @@ function viewToday() {
     <div class="hero">
       <h2>${greet} 👋</h2>
       <p>${fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' })} · ${dueToday.length} due today · ${events.length} on the calendar</p>
-      <form class="capture" data-form="capture">
-        <input type="text" name="q" placeholder="Capture an idea, task, note…" autocomplete="off" enterkeyhint="done" aria-label="Quick capture">
-        <button class="btn" type="submit" aria-label="Capture">${icon('bolt')}</button>
-      </form>
-      <div class="capture-hint">Ideas by default · prefix <code>task:</code> <code>note:</code> <code>event:</code> <code>decision:</code> · tag <code>#ai</code> <code>#studio</code> · <code>!today</code> <code>!tomorrow</code> <code>!p1</code></div>
+      ${captureBox()}
     </div>
 
     <div class="grid tiles section">
@@ -437,6 +549,59 @@ function viewToday() {
       </div>` : ''}
       ${pinned.map((n) => `<div class="card click" data-edit="notes:${n.id}"><div class="card-head">${icon('pin')}<h3>${esc(n.title)}</h3></div><div class="clip muted small">${esc(n.body)}</div></div>`).join('')}
     </div>`;
+}
+
+const CAPTURE_TYPES = [
+  { k: 'idea', label: 'Idea', emoji: '💡', ph: 'Capture an idea…' },
+  { k: 'task', label: 'Task', emoji: '✅', ph: 'e.g. Send deck to investors tomorrow !p1' },
+  { k: 'event', label: 'Event', emoji: '📅', ph: 'e.g. Meet psychologist for Lumid AI tomorrow 3pm' },
+  { k: 'note', label: 'Note', emoji: '📝', ph: 'Note title…' },
+  { k: 'decision', label: 'Decision', emoji: '⚖️', ph: 'We decided to…' },
+  { k: 'link', label: 'Link', emoji: '🔗', ph: 'Paste a reel, YouTube or article link' },
+];
+
+function captureBox() {
+  const tags = db.ventures.filter((v) => v !== 'General').map((v) => [`#${slug(v.split(' ').pop())}`, v, `style="--c:${ventureColor(v)}"`]);
+  const extras = [...tags, ['today', 'Today', ''], ['tomorrow', 'Tomorrow', ''], ['at 10am', '10am', ''], ['!p1', 'Urgent', 'data-tone="danger"']];
+  return `<form class="capture capture-box" data-form="capture">
+      <input type="text" name="q" placeholder="${CAPTURE_TYPES[0].ph}" autocomplete="off" enterkeyhint="done" aria-label="Quick capture">
+      <button class="btn" type="submit" aria-label="Capture">${icon('bolt')}</button>
+    </form>
+    <div class="pills" role="group" aria-label="What are you capturing?">
+      ${CAPTURE_TYPES.map((c) => `<button type="button" class="pill ${c.k === 'idea' ? 'active' : ''}" data-cap-type="${c.k}">${c.emoji} ${c.label}</button>`).join('')}
+    </div>
+    <div class="pills sub" role="group" aria-label="Add details">
+      ${extras.map(([token, label, attr]) => `<button type="button" class="pill" data-cap-token="${esc(token)}" ${attr}>${token.startsWith('#') ? '<span class="dot"></span>' : '+ '}${esc(label)}</button>`).join('')}
+    </div>`;
+}
+
+const CAP_PREFIX_RE = /^\s*(idea|task|todo|note|event|meet|meeting|decision|person|link|watch|video|reel)\s*:\s*/i;
+
+function setCaptureType(kind) {
+  const input = $('[data-form="capture"] input');
+  if (!input) return;
+  const rest = input.value.replace(CAP_PREFIX_RE, '');
+  input.value = kind === 'idea' ? rest : `${kind}: ${rest}`;
+  syncCapturePills(input);
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+function addCaptureToken(token) {
+  const input = $('[data-form="capture"] input');
+  if (!input) return;
+  const v = input.value.replace(/\s+$/, '');
+  input.value = `${v}${v ? ' ' : ''}${token} `;
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+function syncCapturePills(input) {
+  const m = input.value.match(CAP_PREFIX_RE);
+  const alias = { todo: 'task', meet: 'event', meeting: 'event', watch: 'link', video: 'link', reel: 'link', person: 'idea' };
+  const kind = m ? (alias[m[1].toLowerCase()] || m[1].toLowerCase()) : URL_RE.test(input.value) ? 'link' : 'idea';
+  $$('[data-cap-type]').forEach((b) => b.classList.toggle('active', b.dataset.capType === kind));
+  input.placeholder = (CAPTURE_TYPES.find((c) => c.k === kind) || CAPTURE_TYPES[0]).ph;
 }
 
 function statTile(label, value, sub, nav) {
@@ -1012,18 +1177,29 @@ function fieldHTML(f, item) {
   return `<div class="field"><label for="${id}">${f.label}</label>${input}</div>`;
 }
 
-function openEditor(col, id, preset = {}) {
+function openEditor(col, id, preset = {}, opts = {}) {
   const schema = SCHEMAS[col];
   const item = id ? find(col, id) : preset;
   if (id && !item) return;
+  const missing = opts.missing || [];
+  const hint = missing.length
+    ? `<p class="confirm-note warn">📅 Add ${missing.map((k) => ({ date: 'a date', start: 'a start time', due: 'a due date' }[k] || k)).join(' and ')}${opts.require?.some((k) => missing.includes(k)) ? '' : ' (optional)'}.</p>`
+    : opts.confirm ? '<p class="confirm-note">✨ Check the details and confirm.</p>' : '';
   const body = `<form id="editor" data-form="editor" data-col="${col}" data-id="${id || ''}">
+    ${hint}
     ${schema.fields.map((f) => f.row ? `<div class="field-row">${f.row.map((x) => fieldHTML(x, item)).join('')}</div>` : fieldHTML(f, item)).join('')}
   </form>`;
   const foot = `${id ? `<button class="btn danger" data-action="delete" data-col="${col}" data-id="${id}" aria-label="Delete">${icon('trash')}</button>` : ''}
     <span class="spacer"></span>
     <button class="btn ghost" type="button" data-action="close">Cancel</button>
     <button class="btn" type="submit" form="editor">${id ? 'Save' : 'Add ' + schema.label.toLowerCase()}</button>`;
-  openModal(`${id ? 'Edit' : 'New'} ${schema.label.toLowerCase()}`, body, foot);
+  openModal(`${id ? 'Edit' : opts.confirm ? 'Confirm' : 'New'} ${schema.label.toLowerCase()}`, body, foot);
+  missing.forEach((k) => {
+    const el = $(`#f-${k}`, modal);
+    if (!el) return;
+    el.classList.add('missing');
+    if (opts.require?.includes(k)) el.required = true;
+  });
 }
 
 function saveEditor(form) {
@@ -1171,7 +1347,7 @@ const ACTIONS = {
 };
 
 document.addEventListener('click', (e) => {
-  const el = e.target.closest('[data-action],[data-nav],[data-venture],[data-edit],[data-day],[data-month],[data-log],[data-tasks-tab],[data-cal-mode],[data-week],[data-add-day],[data-res-tab],[data-res-done]');
+  const el = e.target.closest('[data-action],[data-nav],[data-venture],[data-edit],[data-day],[data-month],[data-log],[data-tasks-tab],[data-cal-mode],[data-week],[data-add-day],[data-res-tab],[data-res-done],[data-cap-type],[data-cap-token]');
   if (!el || e.target.closest('select, input[type=checkbox], input[type=range]')) return;
   const d = el.dataset;
   if (d.action) return ACTIONS[d.action]?.(el);
@@ -1179,6 +1355,8 @@ document.addEventListener('click', (e) => {
   if (d.venture) { state.venture = d.venture; return render(); }
   if (d.log) return openLog(d.log);
   if (d.edit) { const [col, id] = d.edit.split(':'); return openEditor(col, id); }
+  if (d.capType) return setCaptureType(d.capType);
+  if (d.capToken) return addCaptureToken(d.capToken);
   if (d.calMode) { state.calMode = d.calMode; return render(); }
   if (d.week) { state.calDay = addDays(state.calDay, 7 * Number(d.week)); state.calMonth = state.calDay.slice(0, 7); return render(); }
   if (d.addDay) { state.calDay = d.addDay; return openEditor('events'); }
@@ -1235,6 +1413,8 @@ document.addEventListener('input', (e) => {
     const input = $(`[${searchAttr}]`);
     input.focus();
     input.setSelectionRange(pos, pos);
+  } else if (e.target.closest('[data-form="capture"]')) {
+    syncCapturePills(e.target);
   } else if (e.target.dataset.plan) {
     const v = e.target.value.trim();
     if (v) db.plans[e.target.dataset.plan] = e.target.value; else delete db.plans[e.target.dataset.plan];
@@ -1254,8 +1434,7 @@ document.addEventListener('submit', (e) => {
   switch (form.dataset.form) {
     case 'capture': {
       const input = form.elements.q;
-      capture(input.value);
-      input.value = '';
+      if (capture(input.value) !== 'confirm') input.value = '';
       break;
     }
     case 'editor': saveEditor(form); break;
