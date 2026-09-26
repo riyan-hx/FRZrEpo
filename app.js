@@ -82,8 +82,8 @@ const TILE_GRADIENTS = {
   bell: ['#ff9f0a', '#ff6b00'], pin: ['#ffd60a', '#ff9f0a'],
 };
 const appIcon = (name, size = '', glyph = name) => {
-  const [a, b] = TILE_GRADIENTS[name] || TILE_GRADIENTS.today;
-  return `<span class="app-icon ${size}" style="--g:linear-gradient(160deg,${a},${b})">${icon(glyph)}</span>`;
+  const [, b] = TILE_GRADIENTS[name] || TILE_GRADIENTS.today;
+  return `<span class="app-icon ${size}" style="--ic:${b}">${icon(glyph)}</span>`;
 };
 const hydrateIcons = (root = document) => $$('[data-icon]', root).forEach((el) => { el.innerHTML = icon(el.dataset.icon); });
 
@@ -911,7 +911,7 @@ function sparkline(values) {
   const min = Math.min(...values), max = Math.max(...values), range = max - min || 1;
   const pts = values.map((v, i) => `${(i / (values.length - 1)) * 100},${34 - ((v - min) / range) * 30}`).join(' ');
   return `<svg class="spark" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true">
-    <defs><linearGradient id="${gid}" x1="0" x2="1"><stop offset="0" stop-color="#0a84ff"/><stop offset=".5" stop-color="#5e5ce6"/><stop offset="1" stop-color="#bf5af2"/></linearGradient></defs>
+    <defs><linearGradient id="${gid}" x1="0" x2="1"><stop offset="0" style="stop-color:var(--accent)"/><stop offset="1" style="stop-color:var(--accent-2)"/></linearGradient></defs>
     <polyline points="${pts}" fill="none" stroke="url(#${gid})" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 }
 const metricValue = (m, v) => {
