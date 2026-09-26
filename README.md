@@ -24,7 +24,10 @@ event: demo day !week                       → event in 7 days
 https://youtu.be/… growth tactics #ai       → saved to Resources
 ```
 
-## Run
+## Go live & cloud sync
+See **[SETUP.md](SETUP.md)** — GitHub Pages hosting + optional Supabase database so your data syncs across phone and laptop.
+
+## Run locally
 No build step. Serve the folder with any static server:
 ```
 python3 -m http.server 8080
@@ -33,4 +36,4 @@ Then open http://localhost:8080. Deploy anywhere static (GitHub Pages, Netlify, 
 
 On your phone: open the site → Share → **Add to Home Screen** (iOS) or ⋮ → **Install app** (Android).
 
-Data is stored locally in the browser — use **Settings → Export JSON** to back up or move devices.
+Data is always stored locally (works offline). Enable **Settings → Cloud sync** to sync devices, or use **Export JSON** for manual backups.

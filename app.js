@@ -114,19 +114,27 @@ function seed() {
   return db;
 }
 
+function normalizeDb(raw) {
+  const data = { ...emptyDb(), ...raw };
+  if (!data.plans || typeof data.plans !== 'object') data.plans = {};
+  return data;
+}
+
+function saveLocal() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); }
+  catch { toast('Could not save — storage is full or blocked'); }
+}
+
 const store = {
   load() {
     try {
       const raw = localStorage.getItem(STORE_KEY);
-      if (!raw) return seed();
-      const data = { ...emptyDb(), ...JSON.parse(raw) };
-      if (!data.plans || typeof data.plans !== 'object') data.plans = {};
-      return data;
+      return raw ? normalizeDb(JSON.parse(raw)) : seed();
     } catch { return seed(); }
   },
   save() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); }
-    catch { toast('Could not save — storage is full or blocked'); }
+    saveLocal();
+    cloud.markDirty();
   },
 };
 
@@ -938,8 +946,12 @@ function viewSettings() {
       </form>
     </div>
     <div class="card">
-      <div class="card-head"><h3>Backup & sync</h3></div>
-      <p class="small muted">Data lives on this device (${counts}). Export regularly or move it to another device.</p>
+      <div class="card-head"><h3>☁️ Cloud sync</h3></div>
+      ${cloudCard()}
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Backup</h3></div>
+      <p class="small muted">Data is always saved on this device (${counts}). Export regularly or move it to another device.</p>
       <div class="row">
         <button class="btn ghost" data-action="export">${icon('download')} Export JSON</button>
         <label class="btn ghost">${icon('upload')} Import<input type="file" accept="application/json" data-import hidden></label>
@@ -1149,6 +1161,9 @@ const ACTIONS = {
     if (!confirm('Erase ALL data on this device? Export a backup first if unsure.')) return;
     db = emptyDb(); store.save(); render(); toast('All data erased');
   },
+  'cloud-sync': () => cloud.pull(),
+  'cloud-signout': () => cloud.signOut(),
+  'cloud-disconnect': () => { if (confirm('Disconnect cloud sync on this device? Your data stays here and in the cloud.')) cloud.disconnect(); },
   demo: () => {
     if (!confirm('Replace current data with demo data?')) return;
     db = seed(); store.save(); render();
@@ -1262,6 +1277,14 @@ document.addEventListener('submit', (e) => {
       store.save(); closeModal(); render(); toast(`${m.name} logged`);
       break;
     }
+    case 'cloud-config':
+      cloud.connect(form.elements.url.value, form.elements.key.value);
+      break;
+    case 'cloud-auth': {
+      const create = e.submitter?.value === 'signup';
+      cloud.signIn(form.elements.email.value.trim(), form.elements.password.value, create);
+      break;
+    }
     case 'ventures': {
       const list = [...new Set(form.elements.ventures.value.split(',').map((s) => s.trim()).filter(Boolean))];
       if (!list.length) return toast('Add at least one venture');
@@ -1311,6 +1334,159 @@ document.addEventListener('keydown', (e) => {
 // Sync across tabs
 window.addEventListener('storage', (e) => { if (e.key === STORE_KEY) { db = store.load(); render(); } });
 
+/* ---------- Cloud sync (optional, Supabase) ---------- */
+// Local-first: localStorage is the source of truth on each device; the whole
+// dataset is mirrored to one row per user. Conflicts resolve last-write-wins.
+const CLOUD_KEY = 'lumid-hq-cloud';
+const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+const SYNC_LABELS = { off: '', 'signed-out': 'Sign in to sync', syncing: 'Syncing…', synced: 'Synced', offline: 'Offline', error: 'Sync error' };
+
+const cloud = {
+  cfg: {},
+  client: null,
+  user: null,
+  status: 'off',
+  timer: null,
+
+  load() { try { this.cfg = JSON.parse(localStorage.getItem(CLOUD_KEY)) || {}; } catch { this.cfg = {}; } },
+  persist() { try { localStorage.setItem(CLOUD_KEY, JSON.stringify(this.cfg)); } catch {} },
+  get configured() { return Boolean(this.cfg.url && this.cfg.key); },
+
+  set(status) {
+    this.status = status;
+    const el = $('#sync-badge');
+    el.hidden = status === 'off';
+    el.dataset.status = status;
+    $('span', el).textContent = SYNC_LABELS[status];
+    if (state.view === 'settings' && !modal.open && !document.activeElement?.closest('.view form')) render();
+  },
+
+  async init() {
+    this.load();
+    if (!this.configured) return this.set('off');
+    try {
+      const { createClient } = await import(SUPABASE_JS);
+      this.client = createClient(this.cfg.url, this.cfg.key, { auth: { persistSession: true, storageKey: 'lumid-hq-auth' } });
+      const { data } = await this.client.auth.getSession();
+      this.user = data.session?.user || null;
+      this.client.auth.onAuthStateChange((_event, session) => { this.user = session?.user || null; });
+      if (this.user) await this.pull(); else this.set('signed-out');
+    } catch { this.set(navigator.onLine ? 'error' : 'offline'); }
+  },
+
+  markDirty() {
+    if (!this.configured) return;
+    this.cfg.dirty = true;
+    this.cfg.localUpdatedAt = Date.now();
+    this.persist();
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.push(), 1500);
+  },
+
+  async pull() {
+    if (!this.user) return;
+    this.set('syncing');
+    const { data, error } = await this.client.from('hq_state').select('data, updated_at').eq('user_id', this.user.id).maybeSingle();
+    if (error) return this.set(navigator.onLine ? 'error' : 'offline');
+    if (!data) return this.push();
+    const remoteAt = Date.parse(data.updated_at);
+    const remoteNewer = remoteAt > (this.cfg.lastSynced || 0);
+    if (remoteNewer && (!this.cfg.dirty || remoteAt > (this.cfg.localUpdatedAt || 0))) {
+      db = normalizeDb(data.data);
+      saveLocal();
+      Object.assign(this.cfg, { lastSynced: remoteAt, dirty: false });
+      this.persist();
+      render();
+      return this.set('synced');
+    }
+    if (this.cfg.dirty) return this.push();
+    this.set('synced');
+  },
+
+  async push() {
+    if (!this.user) return;
+    this.set('syncing');
+    const at = this.cfg.localUpdatedAt || Date.now();
+    const { error } = await this.client.from('hq_state').upsert({ user_id: this.user.id, data: db, updated_at: new Date(at).toISOString() });
+    if (error) return this.set(navigator.onLine ? 'error' : 'offline');
+    Object.assign(this.cfg, { lastSynced: at, dirty: false });
+    this.persist();
+    this.set('synced');
+  },
+
+  async signIn(email, password, create) {
+    const auth = this.client.auth;
+    const { data, error } = create
+      ? await auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } })
+      : await auth.signInWithPassword({ email, password });
+    if (error) return toast(error.message);
+    if (!data.session) return toast('Check your email to confirm, then sign in');
+    this.user = data.session.user;
+    // Fresh sign-in: the cloud copy wins. Keep this device's data as a safety backup.
+    try { localStorage.setItem(STORE_KEY + '-presync', JSON.stringify(db)); } catch {}
+    Object.assign(this.cfg, { lastSynced: 0, dirty: false });
+    this.persist();
+    await this.pull();
+    render();
+    toast(`Signed in as ${this.user.email}`);
+  },
+
+  async signOut() {
+    await this.client?.auth.signOut();
+    this.user = null;
+    this.set(this.configured ? 'signed-out' : 'off');
+    render();
+  },
+
+  async connect(url, key) {
+    this.cfg = { url: url.trim().replace(/\/+$/, ''), key: key.trim() };
+    this.persist();
+    await this.init();
+    if (this.status === 'error') toast('Could not reach Supabase — check the URL and key');
+    render();
+  },
+
+  async disconnect() {
+    await this.signOut();
+    this.cfg = {};
+    this.client = null;
+    this.persist();
+    this.set('off');
+    render();
+  },
+};
+
+function cloudCard() {
+  if (!cloud.configured) {
+    return `<p class="small muted">Sync across phone & laptop with a free Supabase database. Setup takes ~5 minutes — see <code>SETUP.md</code> in the repo.</p>
+      <form data-form="cloud-config">
+        <div class="field"><label for="cloud-url">Supabase project URL</label><input type="text" id="cloud-url" name="url" placeholder="https://xxxx.supabase.co" required autocomplete="off" inputmode="url"></div>
+        <div class="field"><label for="cloud-key">Anon / publishable key</label><input type="text" id="cloud-key" name="key" placeholder="eyJhbGciOi… or sb_publishable_…" required autocomplete="off"></div>
+        <button class="btn" type="submit">Connect</button>
+      </form>`;
+  }
+  if (!cloud.user) {
+    return `<p class="small muted">Connected to <b>${esc(hostOf(cloud.cfg.url))}</b>. Sign in to start syncing.</p>
+      <form data-form="cloud-auth">
+        <div class="field"><label for="cloud-email">Email</label><input type="email" id="cloud-email" name="email" required autocomplete="email"></div>
+        <div class="field"><label for="cloud-pass">Password</label><input type="password" id="cloud-pass" name="password" required minlength="6" autocomplete="current-password"></div>
+        <div class="row">
+          <button class="btn" type="submit" name="mode" value="signin">Sign in</button>
+          <button class="btn ghost" type="submit" name="mode" value="signup">Create account</button>
+          <span class="spacer"></span>
+          <button class="btn sm ghost" type="button" data-action="cloud-disconnect">Disconnect</button>
+        </div>
+      </form>`;
+  }
+  const last = cloud.cfg.lastSynced ? new Date(cloud.cfg.lastSynced).toLocaleString() : 'never';
+  return `<p class="small muted">Signed in as <b>${esc(cloud.user.email)}</b><br>Status: ${SYNC_LABELS[cloud.status] || '—'} · last synced ${esc(last)}</p>
+    <div class="row">
+      <button class="btn" data-action="cloud-sync">Sync now</button>
+      <button class="btn ghost" data-action="cloud-signout">Sign out</button>
+      <button class="btn sm ghost" data-action="cloud-disconnect">Disconnect</button>
+    </div>`;
+}
+
 /* ---------- Share target (installed PWA on Android) ---------- */
 function handleShare() {
   const params = new URLSearchParams(location.search);
@@ -1331,7 +1507,11 @@ const initial = location.hash.slice(1);
 if (VIEWS.some((v) => v.id === initial)) state.view = initial;
 handleShare();
 render();
-try { if (!localStorage.getItem(STORE_KEY)) store.save(); } catch {}
+try { if (!localStorage.getItem(STORE_KEY)) saveLocal(); } catch {}
+cloud.init();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && cloud.user) cloud.pull(); });
+window.addEventListener('online', () => { if (cloud.user) cloud.pull(); });
+setInterval(() => { if (document.visibilityState === 'visible' && cloud.user && !cloud.cfg.dirty) cloud.pull(); }, 60000);
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
