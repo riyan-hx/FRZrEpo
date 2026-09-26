@@ -7,7 +7,8 @@ CEO command center for **Lumid AI** and **Lumid Studio** — capture ideas, turn
 - **Ideas** — pipeline board (Spark → Exploring → Building → Shipped / Parked), impact/effort scoring, one-tap *Implement* turns an idea into a task
 - **Tasks** — priorities, due dates, owners, grouped by overdue / today / this week
 - **Notes** — searchable, pinnable notes
-- **Schedule** — month calendar, day agenda, `.ics` export to Google/Apple Calendar
+- **Schedule** — Month / Week / Deadlines views, a written plan for each day, quick-add tasks to any day, deadline countdowns, `.ics` export to Google/Apple Calendar
+- **Resources** — paste reels, YouTube videos, podcasts or articles; watch list → reference → watched, with takeaways notes. On Android, share a link straight into the installed app
 - **Goals** — OKRs with key-result progress sliders
 - **KPIs** — log metrics over time with sparklines, deltas and targets
 - **Decisions** — decision log with review dates
@@ -20,6 +21,7 @@ Voice mode for onboarding #ai                → idea tagged Lumid AI
 task: call investor #studio !tomorrow !p1   → P1 task due tomorrow
 note: board prep thoughts                   → note
 event: demo day !week                       → event in 7 days
+https://youtu.be/… growth tactics #ai       → saved to Resources
 ```
 
 ## Run

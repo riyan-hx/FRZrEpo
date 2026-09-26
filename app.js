@@ -16,6 +16,7 @@ const STAGES = [
   { id: 'parked', label: 'Parked', color: '#8d94a8' },
 ];
 const PRIORITIES = [['p1', 'P1 · Critical'], ['p2', 'P2 · Important'], ['p3', 'P3 · Normal']];
+const RES_STATUS = [['watch', 'To watch'], ['reference', 'Reference'], ['done', 'Watched']];
 const EVENT_TYPES = [['meeting', 'Meeting'], ['focus', 'Focus block'], ['deadline', 'Deadline'], ['investor', 'Investor'], ['launch', 'Launch'], ['personal', 'Personal']];
 
 /* ---------- Utilities ---------- */
@@ -55,6 +56,7 @@ const ICONS = {
   decisions: '<path d="M12 3v18M5 7h14M5 7l-3 7a4 4 0 0 0 6 0zM19 7l-3 7a4 4 0 0 0 6 0zM8 21h8"/>',
   people: '<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 3.1a4 4 0 0 1 0 7.8M22 21a7 7 0 0 0-5-6.7"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  resources: '<rect x="2" y="4" width="20" height="16" rx="4"/><path d="m10 9 5 3-5 3z"/>',
   more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
@@ -75,7 +77,8 @@ const hydrateIcons = (root = document) => $$('[data-icon]', root).forEach((el) =
 /* ---------- Data ---------- */
 const emptyDb = () => ({
   ventures: ['Lumid AI', 'Lumid Studio', 'General'],
-  ideas: [], tasks: [], notes: [], events: [], goals: [], metrics: [], decisions: [], people: [],
+  ideas: [], tasks: [], notes: [], events: [], goals: [], metrics: [], decisions: [], people: [], resources: [],
+  plans: {},
 });
 
 function seed() {
@@ -97,6 +100,10 @@ function seed() {
     { id: uid(), title: 'Weekly leadership sync', date: t, start: '10:00', end: '11:00', type: 'meeting', venture: 'General', notes: '' },
     { id: uid(), title: 'Deep work: product strategy', date: addDays(t, 1), start: '09:00', end: '11:00', type: 'focus', venture: 'Lumid AI', notes: '' },
   ];
+  db.resources = [
+    { id: uid(), url: 'https://www.youtube.com/watch?v=ii1jcLg-eIQ', platform: 'youtube', title: 'How to Start a Startup — YC lecture', status: 'watch', venture: 'General', notes: '', createdAt: Date.now() },
+  ];
+  db.plans = { [t]: '1. Ship onboarding fixes\n2. Investor follow-ups\n3. 2h deep work on roadmap' };
   db.goals = [
     { id: uid(), title: 'Grow Lumid AI to product-market fit', venture: 'Lumid AI', quarter: quarterOf(), keyResults: [{ text: 'Reach 1,000 weekly active users', progress: 35 }, { text: '40% week-4 retention', progress: 20 }] },
   ];
@@ -112,7 +119,9 @@ const store = {
     try {
       const raw = localStorage.getItem(STORE_KEY);
       if (!raw) return seed();
-      return { ...emptyDb(), ...JSON.parse(raw) };
+      const data = { ...emptyDb(), ...JSON.parse(raw) };
+      if (!data.plans || typeof data.plans !== 'object') data.plans = {};
+      return data;
     } catch { return seed(); }
   },
   save() {
@@ -122,7 +131,7 @@ const store = {
 };
 
 let db = store.load();
-const state = { view: 'today', venture: 'All', calMonth: today().slice(0, 7), calDay: today(), notesQuery: '', tasksTab: 'open' };
+const state = { view: 'today', venture: 'All', calMonth: today().slice(0, 7), calDay: today(), calMode: 'month', notesQuery: '', tasksTab: 'open', resTab: 'watch', resQuery: '' };
 
 const ventureColor = (v) => VENTURE_COLORS[Math.max(0, db.ventures.indexOf(v)) % VENTURE_COLORS.length];
 const ventureBadge = (v) => v ? `<span class="badge" style="--c:${ventureColor(v)}"><span class="dot"></span>${esc(v)}</span>` : '';
@@ -186,6 +195,14 @@ const SCHEMAS = {
       { k: 'venture', label: 'Venture', type: 'venture' },
     ],
   },
+  resources: {
+    label: 'Resource', fields: [
+      { k: 'url', label: 'Link', type: 'url', req: true, ph: 'https://…' },
+      { k: 'title', label: 'Title', type: 'text', ph: 'What is it about?' },
+      { row: [{ k: 'status', label: 'Status', type: 'select', options: RES_STATUS, def: 'watch' }, { k: 'venture', label: 'Venture', type: 'venture' }] },
+      { k: 'notes', label: 'Key takeaways', type: 'textarea', ph: 'Why it matters, what to apply…' },
+    ],
+  },
   people: {
     label: 'Person', fields: [
       { k: 'name', label: 'Name', type: 'text', req: true },
@@ -203,6 +220,7 @@ const VIEWS = [
   { id: 'tasks', label: 'Tasks', col: 'tasks' },
   { id: 'notes', label: 'Notes', col: 'notes' },
   { id: 'schedule', label: 'Schedule', col: 'events' },
+  { id: 'resources', label: 'Resources', col: 'resources' },
   { id: 'goals', label: 'Goals', col: 'goals' },
   { id: 'metrics', label: 'KPIs', col: 'metrics' },
   { id: 'decisions', label: 'Decisions', col: 'decisions' },
@@ -235,12 +253,12 @@ function remove(col, id) {
 }
 
 /* ---------- Quick capture parser ---------- */
-function parseCapture(text) {
-  let kind = 'ideas';
+function parseCapture(text, defaultKind = 'ideas') {
+  let kind = defaultKind;
   let t = text.trim();
-  const prefix = t.match(/^(idea|task|todo|note|event|meet|decision|person)\s*:\s*/i);
+  const prefix = t.match(/^(idea|task|todo|note|event|meet|decision|person|link|watch|video|reel)\s*:\s*/i);
   if (prefix) {
-    kind = { idea: 'ideas', task: 'tasks', todo: 'tasks', note: 'notes', event: 'events', meet: 'events', decision: 'decisions', person: 'people' }[prefix[1].toLowerCase()];
+    kind = { idea: 'ideas', task: 'tasks', todo: 'tasks', note: 'notes', event: 'events', meet: 'events', decision: 'decisions', person: 'people', link: 'resources', watch: 'resources', video: 'resources', reel: 'resources' }[prefix[1].toLowerCase()];
     t = t.slice(prefix[0].length);
   }
   let venture = state.venture !== 'All' ? state.venture : 'General';
@@ -264,9 +282,19 @@ function parseCapture(text) {
   return { kind, title: t.replace(/\s+/g, ' ').trim(), venture, due, priority };
 }
 
-function capture(text) {
-  const p = parseCapture(text);
+function capture(text, date = '', defaultKind = 'ideas') {
+  const url = text.match(URL_RE);
+  if (url) {
+    const rest = parseCapture(text.replace(url[0], ''));
+    const res = addResource(url[0], rest.title, { venture: rest.venture });
+    if (!res) return;
+    render();
+    return toast('Saved to Resources', 'Open', () => go('resources'));
+  }
+  const p = parseCapture(text, defaultKind);
   if (!p.title) return;
+  if (p.kind === 'resources') return toast('Paste a full link to save a resource');
+  p.due ||= date;
   const base = { id: uid(), venture: p.venture, createdAt: Date.now() };
   const map = {
     ideas: { ...base, title: p.title, body: '', stage: 'spark', impact: 3, effort: 3 },
@@ -340,6 +368,8 @@ function viewToday() {
   const ideas = byVenture(db.ideas);
   const topIdeas = ideas.filter((i) => ['spark', 'exploring'].includes(i.stage)).sort((a, b) => ideaScore(b) - ideaScore(a)).slice(0, 3);
   const pinned = byVenture(db.notes).filter((n) => n.pinned).slice(0, 2);
+  const toWatch = byVenture(db.resources).filter((r) => r.status === 'watch').slice(0, 3);
+  const dayPlan = db.plans[t];
   const goals = byVenture(db.goals);
   const goalAvg = goals.length ? Math.round(goals.reduce((s, g) => s + goalProgress(g), 0) / goals.length) : 0;
 
@@ -387,6 +417,16 @@ function viewToday() {
           <button class="btn sm ghost" data-action="idea-to-task" data-id="${i.id}">Implement ${icon('arrow')}</button></div>`).join('')}</div>`
           : empty('No ideas yet', 'Capture your next big idea above.')}
       </div>
+      <div class="card">
+        <div class="card-head"><h3>🗓️ Today's plan</h3><button class="link" data-day="${t}" data-go-month>Plan →</button></div>
+        ${dayPlan ? `<div class="clip small" style="-webkit-line-clamp:6">${esc(dayPlan)}</div>` : empty('No plan yet', 'Write your top 3 outcomes for today.')}
+      </div>
+      ${toWatch.length ? `<div class="card">
+        <div class="card-head"><h3>🎬 Up next to watch</h3><button class="link" data-nav="resources">All →</button></div>
+        <div class="list">${toWatch.map((r) => `<div class="item"><span class="thumb-mini">${(PLATFORMS[r.platform] || PLATFORMS.link).emoji}</span>
+          <a class="item-main" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none"><div class="item-title">${esc(r.title)}</div><div class="item-meta">${esc(hostOf(r.url))}</div></a>
+          <button class="btn sm ghost" data-res-done="${r.id}">Done</button></div>`).join('')}</div>
+      </div>` : ''}
       ${pinned.map((n) => `<div class="card click" data-edit="notes:${n.id}"><div class="card-head">${icon('pin')}<h3>${esc(n.title)}</h3></div><div class="clip muted small">${esc(n.body)}</div></div>`).join('')}
     </div>`;
 }
@@ -508,49 +548,130 @@ function eventRow(e, showDate = false) {
   </div>`;
 }
 
+function scheduleIndex() {
+  const byDay = byVenture(db.events).reduce((acc, e) => ((acc[e.date] ||= []).push(e), acc), {});
+  const tasksByDay = byVenture(db.tasks).filter((x) => !x.done && x.due).reduce((acc, x) => ((acc[x.due] ||= []).push(x), acc), {});
+  return { byDay, tasksByDay };
+}
+const isDeadline = (e) => ['deadline', 'launch'].includes(e.type);
+const weekStart = (iso) => { const d = fromISO(iso); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return toISO(d); };
+
 function viewSchedule() {
+  const modes = [['month', 'Month'], ['week', 'Week'], ['deadlines', 'Deadlines']];
+  const seg = `<div class="seg">${modes.map(([k, l]) => `<button class="${state.calMode === k ? 'active' : ''}" data-cal-mode="${k}">${l}</button>`).join('')}</div>`;
+  const body = { month: scheduleMonth, week: scheduleWeek, deadlines: scheduleDeadlines }[state.calMode]();
+  return `<div class="toolbar">${seg}<span class="spacer"></span>
+    <button class="btn sm ghost" data-action="new-deadline">${icon('plus')} Deadline</button>
+    <button class="btn sm ghost" data-action="ics" aria-label="Export to calendar">${icon('download')} .ics</button></div>${body}`;
+}
+
+function dayPanel(iso, idx) {
+  const evs = sortEvents(idx.byDay[iso] || []);
+  const tasks = idx.tasksByDay[iso] || [];
+  return `<div class="card section">
+    <div class="card-head"><h3>${fmtDate(iso, { weekday: 'long', month: 'long', day: 'numeric' })}</h3><button class="link" data-action="new-event">+ Event</button></div>
+    <label class="section-title" for="plan-${iso}">Plan for the day</label>
+    <textarea id="plan-${iso}" class="plan" data-plan="${iso}" placeholder="Top 3 outcomes, themes, what to say no to…">${esc(db.plans[iso] || '')}</textarea>
+    <form class="capture" data-form="day-add" data-date="${iso}" style="margin:12px 0 4px">
+      <input type="text" name="q" placeholder="Add task to this day (or event: …)" autocomplete="off" aria-label="Add to this day">
+      <button class="btn" type="submit" aria-label="Add">${icon('plus')}</button>
+    </form>
+    ${evs.length || tasks.length ? `<div class="list">${evs.map((e) => eventRow(e)).join('')}${tasks.map(taskRow).join('')}</div>` : '<p class="muted small">Nothing scheduled yet.</p>'}
+  </div>`;
+}
+
+function scheduleMonth() {
   const [y, m] = state.calMonth.split('-').map(Number);
   const first = new Date(y, m - 1, 1);
-  const start = new Date(first);
-  start.setDate(1 - ((first.getDay() + 6) % 7)); // Monday-first grid
-  const events = byVenture(db.events);
-  const byDay = events.reduce((acc, e) => ((acc[e.date] ||= []).push(e), acc), {});
-  const tasksByDay = byVenture(db.tasks).filter((x) => !x.done && x.due).reduce((acc, x) => ((acc[x.due] ||= []).push(x), acc), {});
+  const start = fromISO(weekStart(toISO(first)));
+  const idx = scheduleIndex();
   const t = today();
 
   let cells = '';
   for (let i = 0; i < 42; i++) {
     const d = new Date(start); d.setDate(start.getDate() + i);
     const iso = toISO(d);
-    const evs = byDay[iso] || [];
-    const dots = evs.slice(0, 3).map((e) => `<i style="--c:${ventureColor(e.venture)}"></i>`).join('') + (tasksByDay[iso] ? '<i style="--c:var(--warn)"></i>' : '');
-    cells += `<button class="day ${d.getMonth() !== m - 1 ? 'out' : ''} ${iso === t ? 'today' : ''} ${iso === state.calDay ? 'sel' : ''}" data-day="${iso}">${d.getDate()}<span class="dots">${dots}</span></button>`;
+    const evs = idx.byDay[iso] || [];
+    const dots = evs.slice(0, 3).map((e) => `<i style="--c:${isDeadline(e) ? 'var(--danger)' : ventureColor(e.venture)}"></i>`).join('') + (idx.tasksByDay[iso] ? '<i style="--c:var(--warn)"></i>' : '');
+    const cls = [d.getMonth() !== m - 1 && 'out', iso === t && 'today', iso === state.calDay && 'sel', evs.some(isDeadline) && 'dl', db.plans[iso] && 'planned'].filter(Boolean).join(' ');
+    cells += `<button class="day ${cls}" data-day="${iso}">${d.getDate()}<span class="dots">${dots}</span></button>`;
   }
-
-  const dayEvents = sortEvents(byDay[state.calDay] || []);
-  const dayTasks = tasksByDay[state.calDay] || [];
-  const upcoming = sortEvents(events.filter((e) => e.date >= t)).slice(0, 8);
+  const upcoming = sortEvents(byVenture(db.events).filter((e) => e.date >= t)).slice(0, 6);
 
   return `<div class="grid two">
-    <div class="card">
-      <div class="cal-head">
-        <h3>${first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h3>
-        <button class="icon-btn" data-month="-1" aria-label="Previous month">${icon('left')}</button>
-        <button class="btn sm ghost" data-action="cal-today">Today</button>
-        <button class="icon-btn" data-month="1" aria-label="Next month">${icon('right')}</button>
+    <div>
+      <div class="card">
+        <div class="cal-head">
+          <h3>${first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h3>
+          <button class="icon-btn" data-month="-1" aria-label="Previous month">${icon('left')}</button>
+          <button class="btn sm ghost" data-action="cal-today">Today</button>
+          <button class="icon-btn" data-month="1" aria-label="Next month">${icon('right')}</button>
+        </div>
+        <div class="cal">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => `<div class="dow">${d}</div>`).join('')}${cells}</div>
+        <div class="legend small muted"><span><i class="dot" style="--c:var(--danger)"></i>Deadline</span><span><i class="dot" style="--c:var(--warn)"></i>Task due</span><span><i class="dot" style="--c:var(--accent)"></i>Event</span><span><u>12</u> Planned</span></div>
       </div>
-      <div class="cal">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => `<div class="dow">${d}</div>`).join('')}${cells}</div>
-      <div class="row" style="margin-top:14px"><span class="spacer"></span><button class="btn sm ghost" data-action="ics">${icon('download')} Export to calendar (.ics)</button></div>
     </div>
     <div>
-      <div class="card section">
-        <div class="card-head"><h3>${fmtDate(state.calDay, { weekday: 'long', month: 'long', day: 'numeric' })}</h3><button class="link" data-action="new-event">+ Add</button></div>
-        ${dayEvents.length || dayTasks.length ? `<div class="list">${dayEvents.map((e) => eventRow(e)).join('')}${dayTasks.map(taskRow).join('')}</div>` : empty('Free day', 'Nothing scheduled.')}
-      </div>
+      ${dayPanel(state.calDay, idx)}
       <div class="card">
         <div class="card-head"><h3>Upcoming</h3></div>
         ${upcoming.length ? `<div class="list">${upcoming.map((e) => eventRow(e, true)).join('')}</div>` : empty('Nothing upcoming', 'Add meetings, launches and deadlines.')}
       </div>
+    </div>
+  </div>`;
+}
+
+function scheduleWeek() {
+  const start = weekStart(state.calDay);
+  const idx = scheduleIndex();
+  const t = today();
+  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  const range = `${fmtDate(days[0], { month: 'short', day: 'numeric' })} – ${fmtDate(days[6], { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  return `<div class="cal-head">
+      <h3>${range}</h3>
+      <button class="icon-btn" data-week="-1" aria-label="Previous week">${icon('left')}</button>
+      <button class="btn sm ghost" data-action="cal-today">This week</button>
+      <button class="icon-btn" data-week="1" aria-label="Next week">${icon('right')}</button>
+    </div>
+    <div class="week">${days.map((iso) => {
+      const evs = sortEvents(idx.byDay[iso] || []);
+      const tasks = idx.tasksByDay[iso] || [];
+      return `<div class="card week-day ${iso === t ? 'is-today' : ''} ${iso < t ? 'past' : ''}">
+        <div class="card-head"><h3>${fmtDate(iso, { weekday: 'short' })} <span class="muted">${fromISO(iso).getDate()}</span></h3>
+          <button class="icon-btn bare" data-add-day="${iso}" aria-label="Add event on ${fmtDate(iso)}">${icon('plus')}</button></div>
+        ${db.plans[iso] ? `<div class="plan-snippet clip small" data-day="${iso}" data-go-month>${esc(db.plans[iso])}</div>` : ''}
+        ${evs.length || tasks.length ? `<div class="list">${evs.map((e) => eventRow(e)).join('')}${tasks.map(taskRow).join('')}</div>`
+          : `<button class="link small muted plan-link" data-day="${iso}" data-go-month>Plan this day →</button>`}
+      </div>`;
+    }).join('')}</div>`;
+}
+
+function scheduleDeadlines() {
+  const t = today();
+  const items = [
+    ...byVenture(db.events).filter(isDeadline).map((e) => ({ date: e.date, html: deadlineRow(e.date, e.title, `${eventTypeLabel(e.type)} ${ventureBadge(e.venture)}`, `events:${e.id}`) })),
+    ...byVenture(db.tasks).filter((x) => !x.done && x.due).map((x) => ({ date: x.due, html: deadlineRow(x.due, x.title, `Task · ${(x.priority || 'p3').toUpperCase()} ${ventureBadge(x.venture)}`, `tasks:${x.id}`) })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+  const groups = [
+    ['Overdue', (d) => d < t],
+    ['Next 7 days', (d) => d >= t && d <= addDays(t, 7)],
+    ['Next 30 days', (d) => d > addDays(t, 7) && d <= addDays(t, 30)],
+    ['Later', (d) => d > addDays(t, 30)],
+  ].map(([name, fn]) => [name, items.filter((i) => fn(i.date))]).filter(([, l]) => l.length);
+  if (!groups.length) return empty('No deadlines', 'Add launches, investor updates, filing dates… Tap “+ Deadline”.');
+  return groups.map(([name, list]) => `<div class="section"><p class="section-title">${name} · ${list.length}</p>
+    <div class="card" style="padding:4px 14px"><div class="list">${list.map((i) => i.html).join('')}</div></div></div>`).join('');
+}
+
+function deadlineRow(date, title, meta, edit) {
+  const days = Math.round((fromISO(date) - fromISO(today())) / 864e5);
+  const tone = days < 0 ? 'danger' : days <= 2 ? 'warn' : days <= 7 ? '' : 'ok';
+  const label = days < 0 ? `${-days}d late` : days === 0 ? 'Today' : `${days}d`;
+  return `<div class="item">
+    <span class="countdown badge ${tone}">${label}</span>
+    <div class="item-main" data-edit="${edit}">
+      <div class="item-title">${esc(title)}</div>
+      <div class="item-meta">${fmtDate(date)} · ${meta}</div>
     </div>
   </div>`;
 }
@@ -695,6 +816,115 @@ function viewPeople() {
     </div>`).join('')}</div></div>`;
 }
 
+/* ---------- View: Resources ---------- */
+const PLATFORMS = {
+  youtube: { label: 'YouTube', emoji: '▶️', color: '#ff4d4d' },
+  reel: { label: 'Instagram', emoji: '📸', color: '#e1306c' },
+  tiktok: { label: 'TikTok', emoji: '🎵', color: '#25f4ee' },
+  x: { label: 'X', emoji: '𝕏', color: '#8d94a8' },
+  linkedin: { label: 'LinkedIn', emoji: '💼', color: '#0a66c2' },
+  podcast: { label: 'Podcast', emoji: '🎧', color: '#9be15d' },
+  link: { label: 'Article', emoji: '🔗', color: '#5aa9ff' },
+};
+const URL_RE = /https?:\/\/[^\s]+/i;
+
+function normalizeUrl(u) {
+  const s = String(u || '').trim();
+  if (!s) return '';
+  const url = /^https?:\/\//i.test(s) ? s : 'https://' + s;
+  try { return new URL(url).href; } catch { return ''; }
+}
+
+function detectPlatform(url) {
+  let host = '';
+  try { host = new URL(url).hostname.replace(/^www\.|^m\./, ''); } catch { return 'link'; }
+  if (/youtube\.com$|youtu\.be$/.test(host)) return 'youtube';
+  if (/instagram\.com$/.test(host)) return 'reel';
+  if (/tiktok\.com$/.test(host)) return 'tiktok';
+  if (/(^|\.)x\.com$|twitter\.com$/.test(host)) return 'x';
+  if (/linkedin\.com$/.test(host)) return 'linkedin';
+  if (/spotify\.com$|podcasts\.apple\.com$/.test(host)) return 'podcast';
+  return 'link';
+}
+
+function youtubeId(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname.endsWith('youtu.be')) return u.pathname.slice(1).split('/')[0];
+    if (u.searchParams.get('v')) return u.searchParams.get('v');
+    const m = u.pathname.match(/\/(shorts|embed|live)\/([\w-]{6,})/);
+    return m ? m[2] : '';
+  } catch { return ''; }
+}
+
+const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } };
+
+// Best-effort title lookup; the link is saved regardless.
+async function fetchTitle(res) {
+  try {
+    const r = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(res.url)}`);
+    const data = await r.json();
+    const cur = find('resources', res.id);
+    if (data.title && cur && cur.title === res.title) {
+      cur.title = data.title;
+      if (data.author_name && !cur.author) cur.author = data.author_name;
+      store.save();
+      render();
+    }
+  } catch {}
+}
+
+function addResource(url, title = '', extra = {}) {
+  const href = normalizeUrl(url);
+  if (!href) return toast('That link doesn’t look valid');
+  const platform = detectPlatform(href);
+  const res = { id: uid(), url: href, platform, title: title || `${PLATFORMS[platform].label} · ${hostOf(href)}`, status: 'watch', venture: state.venture !== 'All' ? state.venture : 'General', notes: '', createdAt: Date.now(), ...extra };
+  upsert('resources', res);
+  if (!title) fetchTitle(res);
+  return res;
+}
+
+function resourceCard(r) {
+  const p = PLATFORMS[r.platform] || PLATFORMS.link;
+  const yt = r.platform === 'youtube' && youtubeId(r.url);
+  const done = r.status === 'done';
+  return `<div class="card res ${done ? 'is-done' : ''}">
+    <a class="thumb" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer" style="--c:${p.color}" aria-label="Open ${esc(r.title)}">
+      <span class="thumb-emoji">${p.emoji}</span>
+      ${yt ? `<img src="https://i.ytimg.com/vi/${encodeURIComponent(yt)}/mqdefault.jpg" alt="" loading="lazy" onerror="this.remove()">` : ''}
+      <span class="thumb-tag">${p.label}</span>
+    </a>
+    <div class="item-main" data-edit="resources:${r.id}">
+      <div class="idea-title clip2">${esc(r.title)}</div>
+      <div class="small muted">${esc(r.author || hostOf(r.url))}</div>
+      ${r.notes ? `<div class="clip small muted" style="margin-top:6px">${esc(r.notes)}</div>` : ''}
+    </div>
+    <div class="row" style="margin-top:10px">
+      ${ventureBadge(r.venture)}<span class="spacer"></span>
+      <button class="btn sm ${done ? 'ghost' : ''}" data-res-done="${r.id}">${done ? 'Watched ✓' : 'Mark watched'}</button>
+    </div>
+  </div>`;
+}
+
+function viewResources() {
+  const q = state.resQuery.toLowerCase();
+  const all = byVenture(db.resources);
+  const tab = state.resTab;
+  const list = all
+    .filter((r) => tab === 'all' || r.status === tab)
+    .filter((r) => !q || [r.title, r.notes, r.url, r.author].join(' ').toLowerCase().includes(q))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const count = (k) => all.filter((r) => k === 'all' || r.status === k).length;
+  const seg = `<div class="seg">${[...RES_STATUS, ['all', 'All']].map(([k, l]) => `<button class="${tab === k ? 'active' : ''}" data-res-tab="${k}">${l} <span class="muted">${count(k)}</span></button>`).join('')}</div>`;
+  return `<form class="capture section" data-form="res-add">
+      <input type="text" name="url" placeholder="Paste a reel, YouTube or article link…" autocomplete="off" inputmode="url" aria-label="Paste link" required>
+      <button class="btn" type="submit">Save</button>
+    </form>
+    <div class="toolbar">${seg}<input type="search" data-res-search placeholder="Search resources…" value="${esc(state.resQuery)}" aria-label="Search resources"></div>
+    ${list.length ? `<div class="grid cards">${list.map(resourceCard).join('')}</div>`
+      : empty(q ? 'No matching resources' : 'Nothing here yet', 'Paste links to reels, YouTube videos, podcasts or articles to watch later. Tip: on Android, share straight to Lumid HQ once installed.')}`;
+}
+
 /* ---------- View: Settings ---------- */
 function viewSettings() {
   const counts = VIEWS.filter((v) => v.col).map((v) => `${db[v.col].length} ${v.label.toLowerCase()}`).join(' · ');
@@ -729,7 +959,7 @@ function viewSettings() {
   </div>`;
 }
 
-const RENDERERS = { today: viewToday, ideas: viewIdeas, tasks: viewTasks, notes: viewNotes, schedule: viewSchedule, goals: viewGoals, metrics: viewMetrics, decisions: viewDecisions, people: viewPeople, settings: viewSettings };
+const RENDERERS = { today: viewToday, ideas: viewIdeas, tasks: viewTasks, notes: viewNotes, resources: viewResources, schedule: viewSchedule, goals: viewGoals, metrics: viewMetrics, decisions: viewDecisions, people: viewPeople, settings: viewSettings };
 
 /* ---------- Modal & generic editor ---------- */
 const modal = $('#modal');
@@ -770,9 +1000,9 @@ function fieldHTML(f, item) {
   return `<div class="field"><label for="${id}">${f.label}</label>${input}</div>`;
 }
 
-function openEditor(col, id) {
+function openEditor(col, id, preset = {}) {
   const schema = SCHEMAS[col];
-  const item = id ? find(col, id) : {};
+  const item = id ? find(col, id) : preset;
   if (id && !item) return;
   const body = `<form id="editor" data-form="editor" data-col="${col}" data-id="${id || ''}">
     ${schema.fields.map((f) => f.row ? `<div class="field-row">${f.row.map((x) => fieldHTML(x, item)).join('')}</div>` : fieldHTML(f, item)).join('')}
@@ -801,6 +1031,12 @@ function saveEditor(form) {
       item.keyResults = String(v).split('\n').map((s) => s.trim()).filter(Boolean)
         .map((text, i) => ({ text, progress: (prev.find((k) => k.text === text) || prev[i] || {}).progress || 0 }));
     } else item[f.k] = String(v ?? '').trim();
+  }
+  if (col === 'resources') {
+    item.url = normalizeUrl(item.url);
+    if (!item.url) return toast('That link doesn’t look valid');
+    item.platform = detectPlatform(item.url);
+    item.title ||= `${PLATFORMS[item.platform].label} · ${hostOf(item.url)}`;
   }
   if (col === 'notes') item.updatedAt = Date.now();
   if (col === 'tasks' && item.done === undefined) item.done = false;
@@ -899,6 +1135,7 @@ const ACTIONS = {
   delete: (el) => { closeModal(); remove(el.dataset.col, el.dataset.id); },
   'idea-to-task': (el) => ideaToTask(el.dataset.id),
   'new-event': () => openEditor('events'),
+  'new-deadline': () => openEditor('events', null, { type: 'deadline' }),
   'cal-today': () => { state.calMonth = today().slice(0, 7); state.calDay = today(); render(); },
   'clear-done': () => {
     if (!confirm('Remove all completed tasks?')) return;
@@ -919,7 +1156,7 @@ const ACTIONS = {
 };
 
 document.addEventListener('click', (e) => {
-  const el = e.target.closest('[data-action],[data-nav],[data-venture],[data-edit],[data-day],[data-month],[data-log],[data-tasks-tab]');
+  const el = e.target.closest('[data-action],[data-nav],[data-venture],[data-edit],[data-day],[data-month],[data-log],[data-tasks-tab],[data-cal-mode],[data-week],[data-add-day],[data-res-tab],[data-res-done]');
   if (!el || e.target.closest('select, input[type=checkbox], input[type=range]')) return;
   const d = el.dataset;
   if (d.action) return ACTIONS[d.action]?.(el);
@@ -927,7 +1164,17 @@ document.addEventListener('click', (e) => {
   if (d.venture) { state.venture = d.venture; return render(); }
   if (d.log) return openLog(d.log);
   if (d.edit) { const [col, id] = d.edit.split(':'); return openEditor(col, id); }
+  if (d.calMode) { state.calMode = d.calMode; return render(); }
+  if (d.week) { state.calDay = addDays(state.calDay, 7 * Number(d.week)); state.calMonth = state.calDay.slice(0, 7); return render(); }
+  if (d.addDay) { state.calDay = d.addDay; return openEditor('events'); }
+  if (d.resTab) { state.resTab = d.resTab; return render(); }
+  if (d.resDone) {
+    const r = find('resources', d.resDone);
+    if (r) { r.status = r.status === 'done' ? 'watch' : 'done'; store.save(); render(); }
+    return;
+  }
   if (d.day) {
+    if ('goMonth' in d) { state.calMode = 'month'; if (state.view !== 'schedule') go('schedule'); }
     state.calDay = d.day;
     state.calMonth = d.day.slice(0, 7);
     return render();
@@ -963,14 +1210,21 @@ document.addEventListener('change', (e) => {
   }
 });
 
+let planTimer;
 document.addEventListener('input', (e) => {
-  if (e.target.matches('[data-notes-search]')) {
-    state.notesQuery = e.target.value;
+  const searchAttr = ['data-notes-search', 'data-res-search'].find((a) => e.target.hasAttribute(a));
+  if (searchAttr) {
+    state[searchAttr === 'data-notes-search' ? 'notesQuery' : 'resQuery'] = e.target.value;
     const pos = e.target.selectionStart;
     render();
-    const input = $('[data-notes-search]');
+    const input = $(`[${searchAttr}]`);
     input.focus();
     input.setSelectionRange(pos, pos);
+  } else if (e.target.dataset.plan) {
+    const v = e.target.value.trim();
+    if (v) db.plans[e.target.dataset.plan] = e.target.value; else delete db.plans[e.target.dataset.plan];
+    clearTimeout(planTimer);
+    planTimer = setTimeout(() => store.save(), 400);
   } else if (e.target.id === 'search-q') {
     runSearch(e.target.value);
   } else if (e.target.dataset.kr) {
@@ -990,6 +1244,17 @@ document.addEventListener('submit', (e) => {
       break;
     }
     case 'editor': saveEditor(form); break;
+    case 'res-add': {
+      if (addResource(form.elements.url.value)) { form.reset(); state.resTab = 'watch'; render(); toast('Saved to watch list'); }
+      break;
+    }
+    case 'day-add': {
+      const input = form.elements.q;
+      if (!input.value.trim()) break;
+      capture(input.value, form.dataset.date, 'tasks');
+      input.value = '';
+      break;
+    }
     case 'log': {
       const m = find('metrics', form.dataset.id);
       const fd = new FormData(form);
@@ -1046,11 +1311,25 @@ document.addEventListener('keydown', (e) => {
 // Sync across tabs
 window.addEventListener('storage', (e) => { if (e.key === STORE_KEY) { db = store.load(); render(); } });
 
+/* ---------- Share target (installed PWA on Android) ---------- */
+function handleShare() {
+  const params = new URLSearchParams(location.search);
+  const shared = [params.get('url'), params.get('text'), params.get('title')].filter(Boolean).join(' ');
+  const url = shared.match(URL_RE);
+  if (!url) return;
+  const title = (params.get('title') || '').trim();
+  addResource(url[0], URL_RE.test(title) ? '' : title);
+  state.view = 'resources';
+  history.replaceState(null, '', location.pathname + '#resources');
+  setTimeout(() => toast('Saved to Resources'), 300);
+}
+
 /* ---------- Boot ---------- */
 initTheme();
 hydrateIcons();
 const initial = location.hash.slice(1);
 if (VIEWS.some((v) => v.id === initial)) state.view = initial;
+handleShare();
 render();
 try { if (!localStorage.getItem(STORE_KEY)) store.save(); } catch {}
 
