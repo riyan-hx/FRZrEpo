@@ -522,11 +522,9 @@ function viewToday() {
 
   return `
     <div class="hero">
-      <svg class="hero-deco" viewBox="0 0 300 140" preserveAspectRatio="none" aria-hidden="true">
-        <defs><linearGradient id="hero-deco-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--accent)"/><stop offset="1" style="stop-color:#8ab4ff"/></linearGradient></defs>
-        <circle cx="215" cy="92" r="58" fill="url(#hero-deco-g)" opacity=".28"/>
-        <path d="M40 140C90 96 150 92 196 112c34-26 82-30 104-8V140Z" fill="url(#hero-deco-g)" opacity=".22"/>
-        <path d="M120 140c40-24 96-30 180-6V140Z" fill="url(#hero-deco-g)" opacity=".18"/>
+      <svg class="hero-deco" viewBox="0 0 320 320" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1">
+        ${[40, 72, 104, 136, 160].map((r) => `<circle cx="160" cy="160" r="${r}"/>`).join('')}
+        <path d="M0 160h320M160 0v320M47 47l226 226M273 47 47 273"/>
       </svg>
       <span class="hero-badge" aria-hidden="true">${icon(h >= 6 && h < 18 ? 'sun' : 'moon')}</span>
       <h2>${greet}</h2>
@@ -537,9 +535,9 @@ function viewToday() {
 
     <div class="grid tiles section">
       ${statTile('Open tasks', tasks.length, overdue.length ? `<span class="delta down">${overdue.length} overdue</span>` : '<span class="muted">on track</span>', 'tasks', 'tasks',
-        miniBars(dailyCounts(byVenture(db.tasks).filter((x) => x.done && x.doneAt).map((x) => toISO(new Date(x.doneAt)))), 'var(--accent)'))}
+        miniBars(dailyCounts(byVenture(db.tasks).filter((x) => x.done && x.doneAt).map((x) => toISO(new Date(x.doneAt)))), 'var(--text)'))}
       ${statTile('Active ideas', ideas.filter((i) => !['shipped', 'parked'].includes(i.stage)).length, `<span class="muted">${ideas.filter((i) => i.stage === 'building').length} building</span>`, 'ideas', 'ideas',
-        miniBars(dailyCounts(ideas.filter((i) => i.createdAt).map((i) => toISO(new Date(i.createdAt)))), '#2fbf8f'))}
+        miniBars(dailyCounts(ideas.filter((i) => i.createdAt).map((i) => toISO(new Date(i.createdAt)))), 'var(--coral)'))}
       ${statTile('Goal progress', goalAvg + '%', `<span class="muted">${goals.length} objectives</span>`, 'goals', 'goals',
         `<div class="tile-progress" role="progressbar" aria-valuenow="${goalAvg}" aria-valuemin="0" aria-valuemax="100"><span style="width:${goalAvg}%"></span></div>`)}
       ${todayMetrics.map((m, i) => metricTile(m, (3 + todayMetrics.length) % 2 === 1 && i === todayMetrics.length - 1)).join('')}
@@ -950,7 +948,7 @@ function viewGoals() {
 }
 
 /* ---------- View: Metrics ---------- */
-const SPARK_TONES = { accent: ['var(--accent)', '#5aa9ff'], green: ['#2fbf8f', '#2fbf8f'] };
+const SPARK_TONES = { accent: 'var(--blue)', green: 'var(--ok)' };
 
 // Smooth curve through points (Catmull-Rom → cubic Bézier).
 function smoothPath(p) {
@@ -966,18 +964,15 @@ function smoothPath(p) {
 
 function sparkline(values, { tone = 'accent', grid = false } = {}) {
   if (values.length < 2) return '';
-  const gid = 'sg-' + uid();
-  const [c1, c2] = SPARK_TONES[tone] || SPARK_TONES.accent;
+  const color = SPARK_TONES[tone] || SPARK_TONES.accent;
   const min = Math.min(...values), max = Math.max(...values), range = max - min || 1;
   const pts = values.map((v, i) => [(i / (values.length - 1)) * 100, 34 - ((v - min) / range) * 30]);
   const line = smoothPath(pts);
   const gridLines = grid ? [20, 40, 60, 80].map((x) => `<line x1="${x}" y1="0" x2="${x}" y2="36" class="spark-grid" vector-effect="non-scaling-stroke"/>`).join('') : '';
   return `<svg class="spark" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true">
-    <defs><linearGradient id="${gid}" x1="0" x2="1"><stop offset="0" style="stop-color:${c1}"/><stop offset="1" style="stop-color:${c2}"/></linearGradient>
-    <linearGradient id="${gid}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:${c2};stop-opacity:.24"/><stop offset="1" style="stop-color:${c2};stop-opacity:0"/></linearGradient></defs>
     ${gridLines}
-    <path d="${line} L100,36 L0,36 Z" fill="url(#${gid}a)"/>
-    <path d="${line}" fill="none" stroke="url(#${gid})" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+    <path d="${line} L100,36 L0,36 Z" style="fill:${color};fill-opacity:.08"/>
+    <path d="${line}" fill="none" style="stroke:${color}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 }
 
 const METRIC_RANGES = [['30d', 'Last 30 days', 30], ['6m', 'Last 6 months', 183], ['all', 'All time', Infinity]];
@@ -1396,7 +1391,7 @@ async function importJSON(file) {
 /* ---------- Theme ---------- */
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  $('meta[name="theme-color"]').content = theme === 'light' ? '#f5f5f7' : '#000000';
+  $('meta[name="theme-color"]').content = theme === 'dark' ? '#0e0e11' : '#ffffff';
 }
 function initTheme() {
   let saved = null;
