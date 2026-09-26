@@ -6,14 +6,14 @@
 
 const STORE_KEY = 'lumid-hq-v1';
 const THEME_KEY = 'lumid-hq-theme';
-const VENTURE_COLORS = ['#8b7bff', '#3dd6c6', '#ffb547', '#ff6b9a', '#5aa9ff', '#9be15d'];
+const VENTURE_COLORS = ['#5e5ce6', '#30b0c7', '#ff9f0a', '#ff375f', '#0a84ff', '#30d158'];
 
 const STAGES = [
-  { id: 'spark', label: 'Spark', color: '#ffb547' },
-  { id: 'exploring', label: 'Exploring', color: '#5aa9ff' },
-  { id: 'building', label: 'Building', color: '#8b7bff' },
-  { id: 'shipped', label: 'Shipped', color: '#3ddc97' },
-  { id: 'parked', label: 'Parked', color: '#8d94a8' },
+  { id: 'spark', label: 'Spark', color: '#ff9f0a' },
+  { id: 'exploring', label: 'Exploring', color: '#0a84ff' },
+  { id: 'building', label: 'Building', color: '#5e5ce6' },
+  { id: 'shipped', label: 'Shipped', color: '#30d158' },
+  { id: 'parked', label: 'Parked', color: '#8e8e93' },
 ];
 const PRIORITIES = [['p1', 'P1 · Critical'], ['p2', 'P2 · Important'], ['p3', 'P3 · Normal']];
 const RES_STATUS = [['watch', 'To watch'], ['reference', 'Reference'], ['done', 'Watched']];
@@ -57,6 +57,7 @@ const ICONS = {
   people: '<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 3.1a4 4 0 0 1 0 7.8M22 21a7 7 0 0 0-5-6.7"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   resources: '<rect x="2" y="4" width="20" height="16" rx="4"/><path d="m10 9 5 3-5 3z"/>',
+  bell: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
@@ -72,6 +73,18 @@ const ICONS = {
   upload: '<path d="M12 21V9M7 14l5-5 5 5M5 3h14"/>',
 };
 const icon = (name) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+// iOS-style gradient tiles per section
+const TILE_GRADIENTS = {
+  today: ['#0a84ff', '#5e5ce6'], ideas: ['#ffd60a', '#ff9f0a'], tasks: ['#34c759', '#00c7be'],
+  notes: ['#ffcc00', '#ff9500'], schedule: ['#ff6b5a', '#ff2d55'], resources: ['#ff375f', '#bf5af2'],
+  goals: ['#7d7aff', '#5e5ce6'], metrics: ['#64d2ff', '#0a84ff'], decisions: ['#da8fff', '#af52de'],
+  people: ['#63e6e2', '#30b0c7'], settings: ['#aeaeb2', '#636366'], bolt: ['#ff9f0a', '#ff375f'],
+  bell: ['#ff9f0a', '#ff6b00'], pin: ['#ffd60a', '#ff9f0a'],
+};
+const appIcon = (name, size = '', glyph = name) => {
+  const [a, b] = TILE_GRADIENTS[name] || TILE_GRADIENTS.today;
+  return `<span class="app-icon ${size}" style="--g:linear-gradient(160deg,${a},${b})">${icon(glyph)}</span>`;
+};
 const hydrateIcons = (root = document) => $$('[data-icon]', root).forEach((el) => { el.innerHTML = icon(el.dataset.icon); });
 
 /* ---------- Data ---------- */
@@ -260,13 +273,113 @@ function remove(col, id) {
   });
 }
 
+/* ---------- Natural-language date & time ---------- */
+const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const MONTH_RE = '(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?';
+const pad2 = (n) => String(n).padStart(2, '0');
+const hhmm = (h, m = 0) => `${pad2(h)}:${pad2(m)}`;
+const addMinutes = (time, mins) => {
+  const [h, m] = time.split(':').map(Number);
+  const total = Math.min(h * 60 + m + mins, 23 * 60 + 59);
+  return hhmm(Math.floor(total / 60), total % 60);
+};
+
+// Pulls dates/times out of free text ("tomorrow 3pm", "next fri at 10:30", "28 sep")
+// and returns the remaining text plus ISO date and HH:MM times.
+function parseWhen(input) {
+  let t = ` ${input} `;
+  let date = '';
+  let time = '';
+  let duration = 0;
+  const base = today();
+  const take = (re, fn) => {
+    t = t.replace(re, (...m) => {
+      const hit = fn(...m);
+      return hit === false ? m[0] : ' ';
+    });
+  };
+  const futureDate = (month, day) => {
+    const y = fromISO(base).getFullYear();
+    const d = new Date(y, month, day);
+    if (d.getMonth() !== month) return false;
+    if (toISO(d) < base) d.setFullYear(y + 1);
+    return toISO(d);
+  };
+
+  // Durations: "for 30 min", "for 2 hours"
+  take(/\bfor\s+(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minutes)\b/i, (_, n, u) => {
+    duration = Math.round(Number(n) * (/^h/i.test(u) ? 60 : 1));
+  });
+
+  // Times
+  take(/\b(?:at\s+|@\s*)?(\d{1,2})(?:[:.](\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?=[\s,.!?]|$)/i, (_, h, m, ap) => {
+    let hour = Number(h) % 12;
+    if (/^p/i.test(ap)) hour += 12;
+    if (Number(h) > 12) return false;
+    time = hhmm(hour, Number(m || 0));
+  });
+  if (!time) take(/\b(?:at\s+|@\s*)?([01]?\d|2[0-3]):([0-5]\d)\b/i, (_, h, m) => { time = hhmm(Number(h), Number(m)); });
+  if (!time) take(/\b(?:at\s+)?(noon|midday|midnight)\b/i, (_, w) => { time = /mid(night)/i.test(w) ? '00:00' : '12:00'; });
+  if (!time) take(/\b(?:at|@)\s+(\d{1,2})\b(?!\s*(?:[/-]|\w))/i, (_, h) => {
+    const n = Number(h);
+    if (n > 23) return false;
+    time = hhmm(n >= 1 && n <= 7 ? n + 12 : n); // "at 3" means 3pm
+  });
+
+  // Dates
+  take(/\b(?:on\s+|by\s+)?(?:the\s+)?day\s+after\s+tom+or+ow\b/i, () => { date = addDays(base, 2); });
+  if (!date) take(/\b(?:on\s+|by\s+)?(today|tonight)\b/i, (_, w) => {
+    date = base;
+    if (/night/i.test(w) && !time) time = '20:00';
+  });
+  if (!date) take(/\b(?:on\s+|by\s+)?(tom+or+ow|tmrw?|tomm?orr?ow)\b/i, () => { date = addDays(base, 1); });
+  if (!date) take(/\bin\s+(\d+|a|an|one|two|three)\s+(day|days|week|weeks)\b/i, (_, n, u) => {
+    const num = { a: 1, an: 1, one: 1, two: 2, three: 3 }[n.toLowerCase()] || Number(n);
+    date = addDays(base, num * (/week/i.test(u) ? 7 : 1));
+  });
+  if (!date) take(/\b(?:on\s+|by\s+)?next\s+week\b/i, () => { date = addDays(base, 7); });
+  if (!date) take(/\b(?:on\s+|by\s+)?(this\s+|next\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|wed|thu(?:rs?)?|fri)\b\.?/i, (_, which, day) => {
+    const target = WEEKDAYS.findIndex((w) => w.startsWith(day.toLowerCase().slice(0, 3)));
+    const now = fromISO(base).getDay();
+    let diff = (target - now + 7) % 7;
+    if (/next/i.test(which || '') || diff === 0) diff = diff || 7;
+    date = addDays(base, diff);
+  });
+  if (!date) take(new RegExp(`\\b(?:on\\s+|by\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?${MONTH_RE}(?:\\s+(\\d{4}))?`, 'i'), (_, d, mon, y) => {
+    const iso = futureDate(MONTHS.indexOf(mon.toLowerCase()), Number(d));
+    if (!iso) return false;
+    date = y ? `${y}${iso.slice(4)}` : iso;
+  });
+  if (!date) take(new RegExp(`\\b(?:on\\s+|by\\s+)?${MONTH_RE}\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?\\b`, 'i'), (_, mon, d, y) => {
+    const iso = futureDate(MONTHS.indexOf(mon.toLowerCase()), Number(d));
+    if (!iso) return false;
+    date = y ? `${y}${iso.slice(4)}` : iso;
+  });
+  if (!date) take(/\b(\d{4})-(\d{2})-(\d{2})\b/, (m) => { date = m.trim(); });
+  if (!date) take(/\b(?:on\s+|by\s+)?(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/, (_, d, mo, y) => {
+    const iso = futureDate(Number(mo) - 1, Number(d)); // day/month
+    if (!iso) return false;
+    date = y ? `${y.length === 2 ? '20' + y : y}${iso.slice(4)}` : iso;
+  });
+
+  // Fuzzy parts of the day, only if nothing more precise was given
+  if (!time) take(/\b(?:in\s+the\s+|this\s+)?(morning|afternoon|evening)\b/i, (_, w) => {
+    time = { morning: '09:00', afternoon: '14:00', evening: '18:00' }[w.toLowerCase()];
+  });
+
+  const end = time ? addMinutes(time, duration || 60) : '';
+  const rest = t.replace(/\s+/g, ' ').replace(/\s+(at|on|by|for|@)\s*$/i, '').replace(/^\s*(at|on|by)\s+/i, '').trim();
+  return { rest, date, time, end };
+}
+
 /* ---------- Quick capture parser ---------- */
 function parseCapture(text, defaultKind = 'ideas') {
   let kind = defaultKind;
   let t = text.trim();
-  const prefix = t.match(/^(idea|task|todo|note|event|meet|decision|person|link|watch|video|reel)\s*:\s*/i);
+  const prefix = t.match(/^(idea|task|todo|note|event|meet|meeting|decision|person|link|watch|video|reel)\s*:\s*/i);
   if (prefix) {
-    kind = { idea: 'ideas', task: 'tasks', todo: 'tasks', note: 'notes', event: 'events', meet: 'events', decision: 'decisions', person: 'people', link: 'resources', watch: 'resources', video: 'resources', reel: 'resources' }[prefix[1].toLowerCase()];
+    kind = { idea: 'ideas', task: 'tasks', todo: 'tasks', note: 'notes', event: 'events', meet: 'events', meeting: 'events', decision: 'decisions', person: 'people', link: 'resources', watch: 'resources', video: 'resources', reel: 'resources' }[prefix[1].toLowerCase()];
     t = t.slice(prefix[0].length);
   }
   let venture = state.venture !== 'All' ? state.venture : 'General';
@@ -276,6 +389,11 @@ function parseCapture(text, defaultKind = 'ideas') {
     venture = v;
     return '';
   });
+  // Plain mentions like "for lumid ai" also set the venture (longest name first).
+  if (venture === 'General' || venture === state.venture) {
+    const named = [...db.ventures].sort((a, b) => b.length - a.length).find((v) => v !== 'General' && new RegExp(`\\b${v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(t));
+    if (named) venture = named;
+  }
   let due = '';
   t = t.replace(/!(today|tomorrow|week|p1|p2|p3)\b/gi, (m, w) => {
     const k = w.toLowerCase();
@@ -287,7 +405,8 @@ function parseCapture(text, defaultKind = 'ideas') {
   });
   let priority = 'p2';
   t = t.replace(/!(p[123])\b/gi, (_, p) => { priority = p.toLowerCase(); return ''; });
-  return { kind, title: t.replace(/\s+/g, ' ').trim(), venture, due, priority };
+  const when = ['events', 'tasks', 'people', 'decisions'].includes(kind) ? parseWhen(t) : { rest: t, date: '', time: '', end: '' };
+  return { kind, title: when.rest.replace(/\s+/g, ' ').trim(), venture, due: due || when.date, time: when.time, end: when.end, priority };
 }
 
 function capture(text, date = '', defaultKind = 'ideas') {
@@ -303,6 +422,16 @@ function capture(text, date = '', defaultKind = 'ideas') {
   if (!p.title) return;
   if (p.kind === 'resources') return toast('Paste a full link to save a resource');
   p.due ||= date;
+  if (p.kind === 'events') {
+    openEditor('events', null, { title: p.title, date: p.due, start: p.time, end: p.end, type: 'meeting', venture: p.venture, notes: '' },
+      { confirm: true, missing: [!p.due && 'date', !p.time && 'start'].filter(Boolean), require: ['date'] });
+    return 'confirm';
+  }
+  if (p.kind === 'tasks') {
+    openEditor('tasks', null, { title: p.title, due: p.due, priority: p.priority, venture: p.venture },
+      { confirm: true, missing: p.due ? [] : ['due'] });
+    return 'confirm';
+  }
   const base = { id: uid(), venture: p.venture, createdAt: Date.now() };
   const map = {
     ideas: { ...base, title: p.title, body: '', stage: 'spark', impact: 3, effort: 3 },
@@ -326,7 +455,7 @@ function renderNav() {
   };
   $('#side-nav').innerHTML = VIEWS.map((v) => `
     <button class="nav-link ${state.view === v.id ? 'active' : ''}" data-nav="${v.id}">
-      ${icon(v.id)}<span>${v.label}</span>${counts[v.id] ? `<span class="count">${counts[v.id]}</span>` : ''}
+      ${appIcon(v.id)}<span>${v.label}</span>${counts[v.id] ? `<span class="count">${counts[v.id]}</span>` : ''}
     </button>`).join('');
 
   const moreActive = !MOBILE_TABS.includes(state.view);
@@ -383,13 +512,9 @@ function viewToday() {
 
   return `
     <div class="hero">
-      <h2>${greet} 👋</h2>
+      <h2>${greet}</h2>
       <p>${fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' })} · ${dueToday.length} due today · ${events.length} on the calendar</p>
-      <form class="capture" data-form="capture">
-        <input type="text" name="q" placeholder="Capture an idea, task, note…" autocomplete="off" enterkeyhint="done" aria-label="Quick capture">
-        <button class="btn" type="submit" aria-label="Capture">${icon('bolt')}</button>
-      </form>
-      <div class="capture-hint">Ideas by default · prefix <code>task:</code> <code>note:</code> <code>event:</code> <code>decision:</code> · tag <code>#ai</code> <code>#studio</code> · <code>!today</code> <code>!tomorrow</code> <code>!p1</code></div>
+      ${captureBox()}
     </div>
 
     <div class="grid tiles section">
@@ -401,24 +526,24 @@ function viewToday() {
 
     <div class="grid two">
       <div class="card">
-        <div class="card-head"><h3>🎯 Focus</h3><button class="link" data-nav="tasks">All tasks →</button></div>
+        <div class="card-head">${appIcon('bolt')}<h3>Focus</h3><button class="link" data-nav="tasks">All tasks →</button></div>
         ${focus.length ? `<div class="list">${focus.map(taskRow).join('')}</div>` : empty('Clear runway', 'Nothing urgent. Plan the next big move.')}
       </div>
       <div class="card">
-        <div class="card-head"><h3>📅 Today's schedule</h3><button class="link" data-nav="schedule">Calendar →</button></div>
+        <div class="card-head">${appIcon('schedule')}<h3>Today's schedule</h3><button class="link" data-nav="schedule">Calendar →</button></div>
         ${events.length ? `<div class="list">${events.map(eventRow).join('')}</div>` : empty('No meetings today', 'Block time for deep work.')}
         ${upcoming.length ? `<p class="section-title" style="margin-top:14px">Next 7 days</p><div class="list">${upcoming.map((e) => eventRow(e, true)).join('')}</div>` : ''}
       </div>
       ${followUps.length || reviews.length ? `
       <div class="card">
-        <div class="card-head"><h3>🔔 Needs attention</h3></div>
+        <div class="card-head">${appIcon('bell')}<h3>Needs attention</h3></div>
         <div class="list">
           ${followUps.map((p) => `<div class="item"><div class="item-main" data-edit="people:${p.id}"><div class="item-title">Follow up with ${esc(p.name)}</div><div class="item-meta">${esc(p.role || '')} ${p.company ? '· ' + esc(p.company) : ''} <span class="badge warn">${relDate(p.followUp)}</span></div></div></div>`).join('')}
           ${reviews.map((d) => `<div class="item"><div class="item-main" data-edit="decisions:${d.id}"><div class="item-title">Review decision: ${esc(d.title)}</div><div class="item-meta"><span class="badge warn">${relDate(d.review)}</span></div></div></div>`).join('')}
         </div>
       </div>` : ''}
       <div class="card">
-        <div class="card-head"><h3>💡 Top ideas</h3><button class="link" data-nav="ideas">Board →</button></div>
+        <div class="card-head">${appIcon('ideas')}<h3>Top ideas</h3><button class="link" data-nav="ideas">Board →</button></div>
         ${topIdeas.length ? `<div class="list">${topIdeas.map((i) => `
           <div class="item"><div class="item-main" data-edit="ideas:${i.id}"><div class="item-title">${esc(i.title)}</div>
           <div class="item-meta">${ventureBadge(i.venture)} <span class="score">★ ${ideaScore(i).toFixed(0)}</span></div></div>
@@ -426,17 +551,70 @@ function viewToday() {
           : empty('No ideas yet', 'Capture your next big idea above.')}
       </div>
       <div class="card">
-        <div class="card-head"><h3>🗓️ Today's plan</h3><button class="link" data-day="${t}" data-go-month>Plan →</button></div>
+        <div class="card-head">${appIcon('notes')}<h3>Today's plan</h3><button class="link" data-day="${t}" data-go-month>Plan →</button></div>
         ${dayPlan ? `<div class="clip small" style="-webkit-line-clamp:6">${esc(dayPlan)}</div>` : empty('No plan yet', 'Write your top 3 outcomes for today.')}
       </div>
       ${toWatch.length ? `<div class="card">
-        <div class="card-head"><h3>🎬 Up next to watch</h3><button class="link" data-nav="resources">All →</button></div>
+        <div class="card-head">${appIcon('resources')}<h3>Up next to watch</h3><button class="link" data-nav="resources">All →</button></div>
         <div class="list">${toWatch.map((r) => `<div class="item"><span class="thumb-mini">${(PLATFORMS[r.platform] || PLATFORMS.link).emoji}</span>
           <a class="item-main" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none"><div class="item-title">${esc(r.title)}</div><div class="item-meta">${esc(hostOf(r.url))}</div></a>
           <button class="btn sm ghost" data-res-done="${r.id}">Done</button></div>`).join('')}</div>
       </div>` : ''}
-      ${pinned.map((n) => `<div class="card click" data-edit="notes:${n.id}"><div class="card-head">${icon('pin')}<h3>${esc(n.title)}</h3></div><div class="clip muted small">${esc(n.body)}</div></div>`).join('')}
+      ${pinned.map((n) => `<div class="card click" data-edit="notes:${n.id}"><div class="card-head">${appIcon('pin')}<h3>${esc(n.title)}</h3></div><div class="clip muted small">${esc(n.body)}</div></div>`).join('')}
     </div>`;
+}
+
+const CAPTURE_TYPES = [
+  { k: 'idea', label: 'Idea', icon: 'ideas', ph: 'Capture an idea…' },
+  { k: 'task', label: 'Task', icon: 'tasks', ph: 'e.g. Send deck to investors tomorrow !p1' },
+  { k: 'event', label: 'Event', icon: 'schedule', ph: 'e.g. Meet psychologist for Lumid AI tomorrow 3pm' },
+  { k: 'note', label: 'Note', icon: 'notes', ph: 'Note title…' },
+  { k: 'decision', label: 'Decision', icon: 'decisions', ph: 'We decided to…' },
+  { k: 'link', label: 'Link', icon: 'resources', ph: 'Paste a reel, YouTube or article link' },
+];
+
+function captureBox() {
+  const tags = db.ventures.filter((v) => v !== 'General').map((v) => [`#${slug(v.split(' ').pop())}`, v, `style="--c:${ventureColor(v)}"`]);
+  const extras = [...tags, ['today', 'Today', ''], ['tomorrow', 'Tomorrow', ''], ['at 10am', '10am', ''], ['!p1', 'Urgent', 'data-tone="danger"']];
+  return `<form class="capture capture-box" data-form="capture">
+      <input type="text" name="q" placeholder="${CAPTURE_TYPES[0].ph}" autocomplete="off" enterkeyhint="done" aria-label="Quick capture">
+      <button class="btn" type="submit" aria-label="Capture">${icon('bolt')}</button>
+    </form>
+    <div class="pills" role="group" aria-label="What are you capturing?">
+      ${CAPTURE_TYPES.map((c) => `<button type="button" class="pill ${c.k === 'idea' ? 'active' : ''}" data-cap-type="${c.k}">${icon(c.icon)}${c.label}</button>`).join('')}
+    </div>
+    <div class="pills sub" role="group" aria-label="Add details">
+      ${extras.map(([token, label, attr]) => `<button type="button" class="pill" data-cap-token="${esc(token)}" ${attr}>${token.startsWith('#') ? '<span class="dot"></span>' : '+ '}${esc(label)}</button>`).join('')}
+    </div>`;
+}
+
+const CAP_PREFIX_RE = /^\s*(idea|task|todo|note|event|meet|meeting|decision|person|link|watch|video|reel)\s*:\s*/i;
+
+function setCaptureType(kind) {
+  const input = $('[data-form="capture"] input');
+  if (!input) return;
+  const rest = input.value.replace(CAP_PREFIX_RE, '');
+  input.value = kind === 'idea' ? rest : `${kind}: ${rest}`;
+  syncCapturePills(input);
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+function addCaptureToken(token) {
+  const input = $('[data-form="capture"] input');
+  if (!input) return;
+  const v = input.value.replace(/\s+$/, '');
+  input.value = `${v}${v ? ' ' : ''}${token} `;
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+function syncCapturePills(input) {
+  const m = input.value.match(CAP_PREFIX_RE);
+  const alias = { todo: 'task', meet: 'event', meeting: 'event', watch: 'link', video: 'link', reel: 'link', person: 'idea' };
+  const kind = m ? (alias[m[1].toLowerCase()] || m[1].toLowerCase()) : URL_RE.test(input.value) ? 'link' : 'idea';
+  $$('[data-cap-type]').forEach((b) => b.classList.toggle('active', b.dataset.capType === kind));
+  input.placeholder = (CAPTURE_TYPES.find((c) => c.k === kind) || CAPTURE_TYPES[0]).ph;
 }
 
 function statTile(label, value, sub, nav) {
@@ -729,10 +907,12 @@ function viewGoals() {
 /* ---------- View: Metrics ---------- */
 function sparkline(values) {
   if (values.length < 2) return '';
+  const gid = 'sg-' + uid();
   const min = Math.min(...values), max = Math.max(...values), range = max - min || 1;
   const pts = values.map((v, i) => `${(i / (values.length - 1)) * 100},${34 - ((v - min) / range) * 30}`).join(' ');
   return `<svg class="spark" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true">
-    <polyline points="${pts}" fill="none" stroke="var(--accent-2)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`;
+    <defs><linearGradient id="${gid}" x1="0" x2="1"><stop offset="0" stop-color="#0a84ff"/><stop offset=".5" stop-color="#5e5ce6"/><stop offset="1" stop-color="#bf5af2"/></linearGradient></defs>
+    <polyline points="${pts}" fill="none" stroke="url(#${gid})" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 }
 const metricValue = (m, v) => {
   const u = (m.unit || '').trim();
@@ -1012,18 +1192,29 @@ function fieldHTML(f, item) {
   return `<div class="field"><label for="${id}">${f.label}</label>${input}</div>`;
 }
 
-function openEditor(col, id, preset = {}) {
+function openEditor(col, id, preset = {}, opts = {}) {
   const schema = SCHEMAS[col];
   const item = id ? find(col, id) : preset;
   if (id && !item) return;
+  const missing = opts.missing || [];
+  const hint = missing.length
+    ? `<p class="confirm-note warn">📅 Add ${missing.map((k) => ({ date: 'a date', start: 'a start time', due: 'a due date' }[k] || k)).join(' and ')}${opts.require?.some((k) => missing.includes(k)) ? '' : ' (optional)'}.</p>`
+    : opts.confirm ? '<p class="confirm-note">✨ Check the details and confirm.</p>' : '';
   const body = `<form id="editor" data-form="editor" data-col="${col}" data-id="${id || ''}">
+    ${hint}
     ${schema.fields.map((f) => f.row ? `<div class="field-row">${f.row.map((x) => fieldHTML(x, item)).join('')}</div>` : fieldHTML(f, item)).join('')}
   </form>`;
   const foot = `${id ? `<button class="btn danger" data-action="delete" data-col="${col}" data-id="${id}" aria-label="Delete">${icon('trash')}</button>` : ''}
     <span class="spacer"></span>
     <button class="btn ghost" type="button" data-action="close">Cancel</button>
     <button class="btn" type="submit" form="editor">${id ? 'Save' : 'Add ' + schema.label.toLowerCase()}</button>`;
-  openModal(`${id ? 'Edit' : 'New'} ${schema.label.toLowerCase()}`, body, foot);
+  openModal(`${id ? 'Edit' : opts.confirm ? 'Confirm' : 'New'} ${schema.label.toLowerCase()}`, body, foot);
+  missing.forEach((k) => {
+    const el = $(`#f-${k}`, modal);
+    if (!el) return;
+    el.classList.add('missing');
+    if (opts.require?.includes(k)) el.required = true;
+  });
 }
 
 function saveEditor(form) {
@@ -1080,11 +1271,11 @@ function runSearch(q) {
     <button class="result" data-edit="${col}:${item.id}"><span class="kind">${kind}</span><span class="item-main">${esc(item.title || item.name)}</span>${ventureBadge(item.venture)}</button>`).join('');
   $('#search-results').innerHTML = html || (needle
     ? `<p class="muted small">No results for “${esc(q)}”.</p>`
-    : `<div class="more-grid">${VIEWS.map((v) => `<button class="nav-link" data-nav="${v.id}">${icon(v.id)}${v.label}</button>`).join('')}</div>`);
+    : `<div class="more-grid">${VIEWS.map((v) => `<button class="nav-link" data-nav="${v.id}">${appIcon(v.id, 'lg')}${v.label}</button>`).join('')}</div>`);
 }
 
 function openMore() {
-  openModal('More', `<div class="more-grid">${VIEWS.filter((v) => !MOBILE_TABS.includes(v.id)).map((v) => `<button class="nav-link" data-nav="${v.id}">${icon(v.id)}${v.label}</button>`).join('')}</div>`);
+  openModal('More', `<div class="more-grid">${VIEWS.filter((v) => !MOBILE_TABS.includes(v.id)).map((v) => `<button class="nav-link" data-nav="${v.id}">${appIcon(v.id, 'lg')}${v.label}</button>`).join('')}</div>`);
 }
 
 /* ---------- Toast ---------- */
@@ -1121,7 +1312,7 @@ async function importJSON(file) {
 /* ---------- Theme ---------- */
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  $('meta[name="theme-color"]').content = theme === 'light' ? '#f5f6fa' : '#0b0d12';
+  $('meta[name="theme-color"]').content = theme === 'light' ? '#f5f5f7' : '#000000';
 }
 function initTheme() {
   let saved = null;
@@ -1171,7 +1362,7 @@ const ACTIONS = {
 };
 
 document.addEventListener('click', (e) => {
-  const el = e.target.closest('[data-action],[data-nav],[data-venture],[data-edit],[data-day],[data-month],[data-log],[data-tasks-tab],[data-cal-mode],[data-week],[data-add-day],[data-res-tab],[data-res-done]');
+  const el = e.target.closest('[data-action],[data-nav],[data-venture],[data-edit],[data-day],[data-month],[data-log],[data-tasks-tab],[data-cal-mode],[data-week],[data-add-day],[data-res-tab],[data-res-done],[data-cap-type],[data-cap-token]');
   if (!el || e.target.closest('select, input[type=checkbox], input[type=range]')) return;
   const d = el.dataset;
   if (d.action) return ACTIONS[d.action]?.(el);
@@ -1179,6 +1370,8 @@ document.addEventListener('click', (e) => {
   if (d.venture) { state.venture = d.venture; return render(); }
   if (d.log) return openLog(d.log);
   if (d.edit) { const [col, id] = d.edit.split(':'); return openEditor(col, id); }
+  if (d.capType) return setCaptureType(d.capType);
+  if (d.capToken) return addCaptureToken(d.capToken);
   if (d.calMode) { state.calMode = d.calMode; return render(); }
   if (d.week) { state.calDay = addDays(state.calDay, 7 * Number(d.week)); state.calMonth = state.calDay.slice(0, 7); return render(); }
   if (d.addDay) { state.calDay = d.addDay; return openEditor('events'); }
@@ -1235,6 +1428,8 @@ document.addEventListener('input', (e) => {
     const input = $(`[${searchAttr}]`);
     input.focus();
     input.setSelectionRange(pos, pos);
+  } else if (e.target.closest('[data-form="capture"]')) {
+    syncCapturePills(e.target);
   } else if (e.target.dataset.plan) {
     const v = e.target.value.trim();
     if (v) db.plans[e.target.dataset.plan] = e.target.value; else delete db.plans[e.target.dataset.plan];
@@ -1254,8 +1449,7 @@ document.addEventListener('submit', (e) => {
   switch (form.dataset.form) {
     case 'capture': {
       const input = form.elements.q;
-      capture(input.value);
-      input.value = '';
+      if (capture(input.value) !== 'confirm') input.value = '';
       break;
     }
     case 'editor': saveEditor(form); break;
