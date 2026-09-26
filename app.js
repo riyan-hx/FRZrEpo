@@ -1,0 +1,1518 @@
+'use strict';
+
+/* =========================================================
+   Lumid HQ — CEO command center (vanilla JS, localStorage)
+   ========================================================= */
+
+const STORE_KEY = 'lumid-hq-v1';
+const THEME_KEY = 'lumid-hq-theme';
+const VENTURE_COLORS = ['#8b7bff', '#3dd6c6', '#ffb547', '#ff6b9a', '#5aa9ff', '#9be15d'];
+
+const STAGES = [
+  { id: 'spark', label: 'Spark', color: '#ffb547' },
+  { id: 'exploring', label: 'Exploring', color: '#5aa9ff' },
+  { id: 'building', label: 'Building', color: '#8b7bff' },
+  { id: 'shipped', label: 'Shipped', color: '#3ddc97' },
+  { id: 'parked', label: 'Parked', color: '#8d94a8' },
+];
+const PRIORITIES = [['p1', 'P1 · Critical'], ['p2', 'P2 · Important'], ['p3', 'P3 · Normal']];
+const RES_STATUS = [['watch', 'To watch'], ['reference', 'Reference'], ['done', 'Watched']];
+const EVENT_TYPES = [['meeting', 'Meeting'], ['focus', 'Focus block'], ['deadline', 'Deadline'], ['investor', 'Investor'], ['launch', 'Launch'], ['personal', 'Personal']];
+
+/* ---------- Utilities ---------- */
+const $ = (sel, el = document) => el.querySelector(sel);
+const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
+
+const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const fromISO = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const today = () => toISO(new Date());
+const addDays = (iso, n) => { const d = fromISO(iso); d.setDate(d.getDate() + n); return toISO(d); };
+const fmtDate = (iso, opts = { weekday: 'short', month: 'short', day: 'numeric' }) => iso ? fromISO(iso).toLocaleDateString(undefined, opts) : '';
+const relDate = (iso) => {
+  if (!iso) return '';
+  const diff = Math.round((fromISO(iso) - fromISO(today())) / 864e5);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  if (diff === -1) return 'Yesterday';
+  if (diff < 0) return `${-diff}d overdue`;
+  if (diff < 7) return fmtDate(iso, { weekday: 'long' });
+  return fmtDate(iso);
+};
+const fmtNum = (n) => Math.abs(n) >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : Math.abs(n) >= 1e4 ? (n / 1e3).toFixed(1) + 'k' : Number(n).toLocaleString();
+const quarterOf = (d = new Date()) => `Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`;
+
+const ICONS = {
+  today: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  ideas: '<path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/>',
+  tasks: '<rect x="3" y="3" width="18" height="18" rx="4"/><path d="m8 12 3 3 5-6"/>',
+  notes: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
+  schedule: '<rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  goals: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  metrics: '<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>',
+  decisions: '<path d="M12 3v18M5 7h14M5 7l-3 7a4 4 0 0 0 6 0zM19 7l-3 7a4 4 0 0 0 6 0zM8 21h8"/>',
+  people: '<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 3.1a4 4 0 0 1 0 7.8M22 21a7 7 0 0 0-5-6.7"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  resources: '<rect x="2" y="4" width="20" height="16" rx="4"/><path d="m10 9 5 3-5 3z"/>',
+  more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  contrast: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/>',
+  close: '<path d="M18 6 6 18M6 6l12 12"/>',
+  trash: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  left: '<path d="m15 18-6-6 6-6"/>',
+  right: '<path d="m9 18 6-6-6-6"/>',
+  pin: '<path d="M12 17v5M9 3h6l-1 7 4 3v2H6v-2l4-3z"/>',
+  bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  download: '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>',
+  upload: '<path d="M12 21V9M7 14l5-5 5 5M5 3h14"/>',
+};
+const icon = (name) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+const hydrateIcons = (root = document) => $$('[data-icon]', root).forEach((el) => { el.innerHTML = icon(el.dataset.icon); });
+
+/* ---------- Data ---------- */
+const emptyDb = () => ({
+  ventures: ['Lumid AI', 'Lumid Studio', 'General'],
+  ideas: [], tasks: [], notes: [], events: [], goals: [], metrics: [], decisions: [], people: [], resources: [],
+  plans: {},
+});
+
+function seed() {
+  const db = emptyDb();
+  const t = today();
+  db.ideas = [
+    { id: uid(), title: 'Voice-first assistant mode for Lumid AI', body: 'Let users talk to Lumid hands-free. Start with a push-to-talk prototype.', venture: 'Lumid AI', stage: 'exploring', impact: 5, effort: 3, createdAt: Date.now() },
+    { id: uid(), title: 'Template marketplace for Lumid Studio', body: 'Creators sell presets & templates; we take a rev share.', venture: 'Lumid Studio', stage: 'spark', impact: 4, effort: 4, createdAt: Date.now() },
+    { id: uid(), title: 'Shared workspace between AI & Studio', body: 'One login, one project space across both products.', venture: 'General', stage: 'spark', impact: 4, effort: 5, createdAt: Date.now() },
+  ];
+  db.tasks = [
+    { id: uid(), title: 'Review Lumid AI onboarding funnel', venture: 'Lumid AI', due: t, priority: 'p1', done: false, createdAt: Date.now() },
+    { id: uid(), title: 'Draft Lumid Studio launch announcement', venture: 'Lumid Studio', due: addDays(t, 2), priority: 'p2', done: false, createdAt: Date.now() },
+  ];
+  db.notes = [
+    { id: uid(), title: 'Welcome to Lumid HQ 👋', body: 'Your CEO command center.\n\n• Capture any idea instantly from Today (try "task: call investor #ai !tomorrow").\n• Move ideas from Spark → Shipped on the Ideas board, and turn them into tasks with one tap.\n• Track goals (OKRs), KPIs, decisions and key people.\n• Everything is saved on this device. Back up from Settings.\n\nInstall it: open in your phone browser → Share → "Add to Home Screen".', venture: 'General', pinned: true, updatedAt: Date.now() },
+  ];
+  db.events = [
+    { id: uid(), title: 'Weekly leadership sync', date: t, start: '10:00', end: '11:00', type: 'meeting', venture: 'General', notes: '' },
+    { id: uid(), title: 'Deep work: product strategy', date: addDays(t, 1), start: '09:00', end: '11:00', type: 'focus', venture: 'Lumid AI', notes: '' },
+  ];
+  db.resources = [
+    { id: uid(), url: 'https://www.youtube.com/watch?v=ii1jcLg-eIQ', platform: 'youtube', title: 'How to Start a Startup — YC lecture', status: 'watch', venture: 'General', notes: '', createdAt: Date.now() },
+  ];
+  db.plans = { [t]: '1. Ship onboarding fixes\n2. Investor follow-ups\n3. 2h deep work on roadmap' };
+  db.goals = [
+    { id: uid(), title: 'Grow Lumid AI to product-market fit', venture: 'Lumid AI', quarter: quarterOf(), keyResults: [{ text: 'Reach 1,000 weekly active users', progress: 35 }, { text: '40% week-4 retention', progress: 20 }] },
+  ];
+  db.metrics = [
+    { id: uid(), name: 'Weekly active users', venture: 'Lumid AI', unit: '', target: 1000, entries: [[addDays(t, -21), 180], [addDays(t, -14), 240], [addDays(t, -7), 290], [t, 350]].map(([date, value]) => ({ date, value })) },
+    { id: uid(), name: 'MRR', venture: 'Lumid Studio', unit: '$', target: 10000, entries: [[addDays(t, -21), 1200], [addDays(t, -14), 1500], [addDays(t, -7), 1450], [t, 1900]].map(([date, value]) => ({ date, value })) },
+  ];
+  return db;
+}
+
+function normalizeDb(raw) {
+  const data = { ...emptyDb(), ...raw };
+  if (!data.plans || typeof data.plans !== 'object') data.plans = {};
+  return data;
+}
+
+function saveLocal() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); }
+  catch { toast('Could not save — storage is full or blocked'); }
+}
+
+const store = {
+  load() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      return raw ? normalizeDb(JSON.parse(raw)) : seed();
+    } catch { return seed(); }
+  },
+  save() {
+    saveLocal();
+    cloud.markDirty();
+  },
+};
+
+let db = store.load();
+const state = { view: 'today', venture: 'All', calMonth: today().slice(0, 7), calDay: today(), calMode: 'month', notesQuery: '', tasksTab: 'open', resTab: 'watch', resQuery: '' };
+
+const ventureColor = (v) => VENTURE_COLORS[Math.max(0, db.ventures.indexOf(v)) % VENTURE_COLORS.length];
+const ventureBadge = (v) => v ? `<span class="badge" style="--c:${ventureColor(v)}"><span class="dot"></span>${esc(v)}</span>` : '';
+const byVenture = (arr) => state.venture === 'All' ? arr : arr.filter((x) => x.venture === state.venture);
+const find = (col, id) => db[col].find((x) => x.id === id);
+
+/* ---------- Schemas (drive the generic editor) ---------- */
+const SCHEMAS = {
+  ideas: {
+    label: 'Idea', fields: [
+      { k: 'title', label: 'Idea', type: 'text', req: true, ph: 'What if we…' },
+      { k: 'body', label: 'Details', type: 'textarea', ph: 'Problem, solution, why now, first step…' },
+      { row: [{ k: 'venture', label: 'Venture', type: 'venture' }, { k: 'stage', label: 'Stage', type: 'select', options: STAGES.map((s) => [s.id, s.label]), def: 'spark' }] },
+      { row: [{ k: 'impact', label: 'Impact', type: 'range', min: 1, max: 5, def: 3 }, { k: 'effort', label: 'Effort', type: 'range', min: 1, max: 5, def: 3 }] },
+    ],
+  },
+  tasks: {
+    label: 'Task', fields: [
+      { k: 'title', label: 'Task', type: 'text', req: true, ph: 'What needs to happen?' },
+      { row: [{ k: 'due', label: 'Due', type: 'date' }, { k: 'priority', label: 'Priority', type: 'select', options: PRIORITIES, def: 'p2' }] },
+      { row: [{ k: 'venture', label: 'Venture', type: 'venture' }, { k: 'owner', label: 'Owner', type: 'text', ph: 'Me' }] },
+      { k: 'notes', label: 'Notes', type: 'textarea' },
+    ],
+  },
+  notes: {
+    label: 'Note', fields: [
+      { k: 'title', label: 'Title', type: 'text', req: true, ph: 'Untitled note' },
+      { k: 'body', label: 'Note', type: 'textarea', tall: true, ph: 'Write anything…' },
+      { row: [{ k: 'venture', label: 'Venture', type: 'venture' }, { k: 'pinned', label: 'Pinned', type: 'checkbox' }] },
+    ],
+  },
+  events: {
+    label: 'Event', fields: [
+      { k: 'title', label: 'Title', type: 'text', req: true, ph: 'Board meeting, investor call…' },
+      { row: [{ k: 'date', label: 'Date', type: 'date', def: () => state.calDay, req: true }, { k: 'type', label: 'Type', type: 'select', options: EVENT_TYPES, def: 'meeting' }] },
+      { row: [{ k: 'start', label: 'Start', type: 'time' }, { k: 'end', label: 'End', type: 'time' }] },
+      { k: 'venture', label: 'Venture', type: 'venture' },
+      { k: 'notes', label: 'Agenda / notes', type: 'textarea' },
+    ],
+  },
+  goals: {
+    label: 'Goal', fields: [
+      { k: 'title', label: 'Objective', type: 'text', req: true, ph: 'Ambitious, qualitative goal' },
+      { row: [{ k: 'venture', label: 'Venture', type: 'venture' }, { k: 'quarter', label: 'Quarter', type: 'text', def: () => quarterOf() }] },
+      { k: 'keyResults', label: 'Key results (one per line)', type: 'krs', ph: 'Reach 1,000 weekly active users\nClose seed round' },
+    ],
+  },
+  metrics: {
+    label: 'KPI', fields: [
+      { k: 'name', label: 'Metric', type: 'text', req: true, ph: 'MRR, Active users, Runway…' },
+      { row: [{ k: 'venture', label: 'Venture', type: 'venture' }, { k: 'unit', label: 'Unit / prefix', type: 'text', ph: '$, %, users' }] },
+      { k: 'target', label: 'Target', type: 'number' },
+    ],
+  },
+  decisions: {
+    label: 'Decision', fields: [
+      { k: 'title', label: 'Decision', type: 'text', req: true, ph: 'We will…' },
+      { k: 'context', label: 'Context & options considered', type: 'textarea' },
+      { k: 'rationale', label: 'Why', type: 'textarea' },
+      { row: [{ k: 'date', label: 'Decided on', type: 'date', def: today }, { k: 'review', label: 'Review on', type: 'date' }] },
+      { k: 'venture', label: 'Venture', type: 'venture' },
+    ],
+  },
+  resources: {
+    label: 'Resource', fields: [
+      { k: 'url', label: 'Link', type: 'url', req: true, ph: 'https://…' },
+      { k: 'title', label: 'Title', type: 'text', ph: 'What is it about?' },
+      { row: [{ k: 'status', label: 'Status', type: 'select', options: RES_STATUS, def: 'watch' }, { k: 'venture', label: 'Venture', type: 'venture' }] },
+      { k: 'notes', label: 'Key takeaways', type: 'textarea', ph: 'Why it matters, what to apply…' },
+    ],
+  },
+  people: {
+    label: 'Person', fields: [
+      { k: 'name', label: 'Name', type: 'text', req: true },
+      { row: [{ k: 'role', label: 'Role', type: 'text', ph: 'Investor, Advisor, Hire…' }, { k: 'company', label: 'Company', type: 'text' }] },
+      { row: [{ k: 'email', label: 'Email', type: 'email' }, { k: 'followUp', label: 'Next follow-up', type: 'date' }] },
+      { k: 'venture', label: 'Venture', type: 'venture' },
+      { k: 'notes', label: 'Notes', type: 'textarea' },
+    ],
+  },
+};
+
+const VIEWS = [
+  { id: 'today', label: 'Today', col: null },
+  { id: 'ideas', label: 'Ideas', col: 'ideas' },
+  { id: 'tasks', label: 'Tasks', col: 'tasks' },
+  { id: 'notes', label: 'Notes', col: 'notes' },
+  { id: 'schedule', label: 'Schedule', col: 'events' },
+  { id: 'resources', label: 'Resources', col: 'resources' },
+  { id: 'goals', label: 'Goals', col: 'goals' },
+  { id: 'metrics', label: 'KPIs', col: 'metrics' },
+  { id: 'decisions', label: 'Decisions', col: 'decisions' },
+  { id: 'people', label: 'People', col: 'people' },
+  { id: 'settings', label: 'Settings', col: null },
+];
+const MOBILE_TABS = ['today', 'ideas', 'tasks', 'notes', 'schedule'];
+
+/* ---------- Mutations ---------- */
+let lastDeleted = null;
+
+function upsert(col, item) {
+  const i = db[col].findIndex((x) => x.id === item.id);
+  if (i >= 0) db[col][i] = item; else db[col].unshift(item);
+  store.save();
+}
+
+function remove(col, id) {
+  const i = db[col].findIndex((x) => x.id === id);
+  if (i < 0) return;
+  lastDeleted = { col, item: db[col][i], index: i };
+  db[col].splice(i, 1);
+  store.save();
+  render();
+  toast(`${SCHEMAS[col].label} deleted`, 'Undo', () => {
+    db[lastDeleted.col].splice(lastDeleted.index, 0, lastDeleted.item);
+    store.save();
+    render();
+  });
+}
+
+/* ---------- Quick capture parser ---------- */
+function parseCapture(text, defaultKind = 'ideas') {
+  let kind = defaultKind;
+  let t = text.trim();
+  const prefix = t.match(/^(idea|task|todo|note|event|meet|decision|person|link|watch|video|reel)\s*:\s*/i);
+  if (prefix) {
+    kind = { idea: 'ideas', task: 'tasks', todo: 'tasks', note: 'notes', event: 'events', meet: 'events', decision: 'decisions', person: 'people', link: 'resources', watch: 'resources', video: 'resources', reel: 'resources' }[prefix[1].toLowerCase()];
+    t = t.slice(prefix[0].length);
+  }
+  let venture = state.venture !== 'All' ? state.venture : 'General';
+  t = t.replace(/#(\w+)/g, (m, tag) => {
+    const v = db.ventures.find((x) => slug(x) === slug(tag) || slug(x.split(' ').pop()) === slug(tag));
+    if (!v) return m;
+    venture = v;
+    return '';
+  });
+  let due = '';
+  t = t.replace(/!(today|tomorrow|week|p1|p2|p3)\b/gi, (m, w) => {
+    const k = w.toLowerCase();
+    if (k === 'today') due = today();
+    else if (k === 'tomorrow') due = addDays(today(), 1);
+    else if (k === 'week') due = addDays(today(), 7);
+    else return m;
+    return '';
+  });
+  let priority = 'p2';
+  t = t.replace(/!(p[123])\b/gi, (_, p) => { priority = p.toLowerCase(); return ''; });
+  return { kind, title: t.replace(/\s+/g, ' ').trim(), venture, due, priority };
+}
+
+function capture(text, date = '', defaultKind = 'ideas') {
+  const url = text.match(URL_RE);
+  if (url) {
+    const rest = parseCapture(text.replace(url[0], ''));
+    const res = addResource(url[0], rest.title, { venture: rest.venture });
+    if (!res) return;
+    render();
+    return toast('Saved to Resources', 'Open', () => go('resources'));
+  }
+  const p = parseCapture(text, defaultKind);
+  if (!p.title) return;
+  if (p.kind === 'resources') return toast('Paste a full link to save a resource');
+  p.due ||= date;
+  const base = { id: uid(), venture: p.venture, createdAt: Date.now() };
+  const map = {
+    ideas: { ...base, title: p.title, body: '', stage: 'spark', impact: 3, effort: 3 },
+    tasks: { ...base, title: p.title, due: p.due, priority: p.priority, done: false },
+    notes: { ...base, title: p.title, body: '', pinned: false, updatedAt: Date.now() },
+    events: { ...base, title: p.title, date: p.due || today(), start: '', end: '', type: 'meeting', notes: '' },
+    decisions: { ...base, title: p.title, date: today(), context: '', rationale: '' },
+    people: { ...base, name: p.title, followUp: p.due },
+  };
+  upsert(p.kind, map[p.kind]);
+  render();
+  toast(`${SCHEMAS[p.kind].label} captured → ${p.venture}`, 'Open', () => openEditor(p.kind, map[p.kind].id));
+}
+
+/* ---------- Shell rendering ---------- */
+function renderNav() {
+  const counts = {
+    ideas: db.ideas.filter((i) => !['shipped', 'parked'].includes(i.stage)).length,
+    tasks: db.tasks.filter((t) => !t.done).length,
+    notes: db.notes.length,
+  };
+  $('#side-nav').innerHTML = VIEWS.map((v) => `
+    <button class="nav-link ${state.view === v.id ? 'active' : ''}" data-nav="${v.id}">
+      ${icon(v.id)}<span>${v.label}</span>${counts[v.id] ? `<span class="count">${counts[v.id]}</span>` : ''}
+    </button>`).join('');
+
+  const moreActive = !MOBILE_TABS.includes(state.view);
+  $('#bottom-nav').innerHTML = MOBILE_TABS.map((id) => {
+    const v = VIEWS.find((x) => x.id === id);
+    return `<button class="${state.view === id ? 'active' : ''}" data-nav="${id}">${icon(id)}<span>${v.label}</span></button>`;
+  }).join('') + `<button class="${moreActive ? 'active' : ''}" data-action="more">${icon('more')}<span>More</span></button>`;
+
+  const filter = ['All', ...db.ventures];
+  $('#venture-filter').innerHTML = filter.map((v) => `
+    <button class="chip ${state.venture === v ? 'active' : ''}" data-venture="${esc(v)}" role="tab" aria-selected="${state.venture === v}">
+      ${v === 'All' ? '' : `<span class="dot" style="--c:${ventureColor(v)}"></span>`}${esc(v)}
+    </button>`).join('');
+  $('#venture-filter').hidden = state.view === 'settings';
+  $('#view-title').textContent = VIEWS.find((v) => v.id === state.view).label;
+  $('.fab').hidden = state.view === 'settings';
+}
+
+function render() {
+  renderNav();
+  $('#view').innerHTML = RENDERERS[state.view]();
+  document.title = `${VIEWS.find((v) => v.id === state.view).label} · Lumid HQ`;
+}
+
+function go(view) {
+  state.view = view;
+  history.replaceState(null, '', `#${view}`);
+  render();
+  window.scrollTo({ top: 0 });
+}
+
+const empty = (title, hint) => `<div class="empty"><strong>${esc(title)}</strong>${esc(hint)}</div>`;
+
+/* ---------- View: Today ---------- */
+function viewToday() {
+  const t = today();
+  const h = new Date().getHours();
+  const greet = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  const tasks = byVenture(db.tasks).filter((x) => !x.done);
+  const overdue = tasks.filter((x) => x.due && x.due < t);
+  const dueToday = tasks.filter((x) => x.due === t);
+  const focus = [...overdue, ...dueToday, ...tasks.filter((x) => x.priority === 'p1' && (!x.due || x.due > t))].slice(0, 6);
+  const events = sortEvents(byVenture(db.events).filter((e) => e.date === t));
+  const upcoming = sortEvents(byVenture(db.events).filter((e) => e.date > t && e.date <= addDays(t, 7))).slice(0, 4);
+  const followUps = byVenture(db.people).filter((p) => p.followUp && p.followUp <= t);
+  const reviews = byVenture(db.decisions).filter((d) => d.review && d.review <= t);
+  const ideas = byVenture(db.ideas);
+  const topIdeas = ideas.filter((i) => ['spark', 'exploring'].includes(i.stage)).sort((a, b) => ideaScore(b) - ideaScore(a)).slice(0, 3);
+  const pinned = byVenture(db.notes).filter((n) => n.pinned).slice(0, 2);
+  const toWatch = byVenture(db.resources).filter((r) => r.status === 'watch').slice(0, 3);
+  const dayPlan = db.plans[t];
+  const goals = byVenture(db.goals);
+  const goalAvg = goals.length ? Math.round(goals.reduce((s, g) => s + goalProgress(g), 0) / goals.length) : 0;
+
+  return `
+    <div class="hero">
+      <h2>${greet} 👋</h2>
+      <p>${fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' })} · ${dueToday.length} due today · ${events.length} on the calendar</p>
+      <form class="capture" data-form="capture">
+        <input type="text" name="q" placeholder="Capture an idea, task, note…" autocomplete="off" enterkeyhint="done" aria-label="Quick capture">
+        <button class="btn" type="submit" aria-label="Capture">${icon('bolt')}</button>
+      </form>
+      <div class="capture-hint">Ideas by default · prefix <code>task:</code> <code>note:</code> <code>event:</code> <code>decision:</code> · tag <code>#ai</code> <code>#studio</code> · <code>!today</code> <code>!tomorrow</code> <code>!p1</code></div>
+    </div>
+
+    <div class="grid tiles section">
+      ${statTile('Open tasks', tasks.length, overdue.length ? `<span class="delta down">${overdue.length} overdue</span>` : '<span class="muted">on track</span>', 'tasks')}
+      ${statTile('Active ideas', ideas.filter((i) => !['shipped', 'parked'].includes(i.stage)).length, `<span class="muted">${ideas.filter((i) => i.stage === 'building').length} building</span>`, 'ideas')}
+      ${statTile('Goal progress', goalAvg + '%', `<span class="muted">${goals.length} objectives</span>`, 'goals')}
+      ${byVenture(db.metrics).slice(0, 3).map(metricTile).join('')}
+    </div>
+
+    <div class="grid two">
+      <div class="card">
+        <div class="card-head"><h3>🎯 Focus</h3><button class="link" data-nav="tasks">All tasks →</button></div>
+        ${focus.length ? `<div class="list">${focus.map(taskRow).join('')}</div>` : empty('Clear runway', 'Nothing urgent. Plan the next big move.')}
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>📅 Today's schedule</h3><button class="link" data-nav="schedule">Calendar →</button></div>
+        ${events.length ? `<div class="list">${events.map(eventRow).join('')}</div>` : empty('No meetings today', 'Block time for deep work.')}
+        ${upcoming.length ? `<p class="section-title" style="margin-top:14px">Next 7 days</p><div class="list">${upcoming.map((e) => eventRow(e, true)).join('')}</div>` : ''}
+      </div>
+      ${followUps.length || reviews.length ? `
+      <div class="card">
+        <div class="card-head"><h3>🔔 Needs attention</h3></div>
+        <div class="list">
+          ${followUps.map((p) => `<div class="item"><div class="item-main" data-edit="people:${p.id}"><div class="item-title">Follow up with ${esc(p.name)}</div><div class="item-meta">${esc(p.role || '')} ${p.company ? '· ' + esc(p.company) : ''} <span class="badge warn">${relDate(p.followUp)}</span></div></div></div>`).join('')}
+          ${reviews.map((d) => `<div class="item"><div class="item-main" data-edit="decisions:${d.id}"><div class="item-title">Review decision: ${esc(d.title)}</div><div class="item-meta"><span class="badge warn">${relDate(d.review)}</span></div></div></div>`).join('')}
+        </div>
+      </div>` : ''}
+      <div class="card">
+        <div class="card-head"><h3>💡 Top ideas</h3><button class="link" data-nav="ideas">Board →</button></div>
+        ${topIdeas.length ? `<div class="list">${topIdeas.map((i) => `
+          <div class="item"><div class="item-main" data-edit="ideas:${i.id}"><div class="item-title">${esc(i.title)}</div>
+          <div class="item-meta">${ventureBadge(i.venture)} <span class="score">★ ${ideaScore(i).toFixed(0)}</span></div></div>
+          <button class="btn sm ghost" data-action="idea-to-task" data-id="${i.id}">Implement ${icon('arrow')}</button></div>`).join('')}</div>`
+          : empty('No ideas yet', 'Capture your next big idea above.')}
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>🗓️ Today's plan</h3><button class="link" data-day="${t}" data-go-month>Plan →</button></div>
+        ${dayPlan ? `<div class="clip small" style="-webkit-line-clamp:6">${esc(dayPlan)}</div>` : empty('No plan yet', 'Write your top 3 outcomes for today.')}
+      </div>
+      ${toWatch.length ? `<div class="card">
+        <div class="card-head"><h3>🎬 Up next to watch</h3><button class="link" data-nav="resources">All →</button></div>
+        <div class="list">${toWatch.map((r) => `<div class="item"><span class="thumb-mini">${(PLATFORMS[r.platform] || PLATFORMS.link).emoji}</span>
+          <a class="item-main" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none"><div class="item-title">${esc(r.title)}</div><div class="item-meta">${esc(hostOf(r.url))}</div></a>
+          <button class="btn sm ghost" data-res-done="${r.id}">Done</button></div>`).join('')}</div>
+      </div>` : ''}
+      ${pinned.map((n) => `<div class="card click" data-edit="notes:${n.id}"><div class="card-head">${icon('pin')}<h3>${esc(n.title)}</h3></div><div class="clip muted small">${esc(n.body)}</div></div>`).join('')}
+    </div>`;
+}
+
+function statTile(label, value, sub, nav) {
+  return `<div class="tile card click" data-nav="${nav}"><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${sub}</div></div>`;
+}
+
+/* ---------- View: Ideas ---------- */
+const ideaScore = (i) => (Number(i.impact) || 3) * 2 - (Number(i.effort) || 3) + 5; // 0–14ish, higher = better bet
+
+function viewIdeas() {
+  const ideas = byVenture(db.ideas);
+  if (!ideas.length) return empty('Your idea pipeline is empty', 'Tap + to capture your first idea. Random thoughts welcome.');
+  return `<div class="board">${STAGES.map((s) => {
+    const list = ideas.filter((i) => i.stage === s.id).sort((a, b) => ideaScore(b) - ideaScore(a));
+    return `<div class="col" data-drop="${s.id}">
+      <div class="col-head"><span class="dot" style="--c:${s.color}"></span>${s.label}<span class="count">${list.length}</span></div>
+      ${list.map((i) => `
+        <div class="card click" draggable="true" data-drag="${i.id}" data-edit="ideas:${i.id}">
+          <div class="idea-title">${esc(i.title)}</div>
+          ${i.body ? `<div class="clip muted small">${esc(i.body)}</div>` : ''}
+          <div class="row" style="margin-top:10px">
+            ${ventureBadge(i.venture)}
+            <span class="small muted">Impact ${i.impact} · Effort ${i.effort}</span>
+            <span class="spacer"></span><span class="score" title="Score">★ ${ideaScore(i).toFixed(0)}</span>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <select class="stage-select" data-stage="${i.id}" aria-label="Move to stage" style="padding:6px 10px;font-size:13px;flex:1">
+              ${STAGES.map((x) => `<option value="${x.id}" ${x.id === i.stage ? 'selected' : ''}>${x.label}</option>`).join('')}
+            </select>
+            ${i.stage !== 'shipped' ? `<button class="btn sm" data-action="idea-to-task" data-id="${i.id}">Implement</button>` : ''}
+          </div>
+        </div>`).join('')}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function ideaToTask(id) {
+  const idea = find('ideas', id);
+  if (!idea) return;
+  const task = { id: uid(), title: `Kick off: ${idea.title}`, venture: idea.venture, due: addDays(today(), 3), priority: 'p2', done: false, ideaId: id, notes: idea.body, createdAt: Date.now() };
+  upsert('tasks', task);
+  if (['spark', 'exploring'].includes(idea.stage)) idea.stage = 'building';
+  store.save();
+  render();
+  toast('Task created & idea moved to Building', 'Edit', () => openEditor('tasks', task.id));
+}
+
+/* ---------- View: Tasks ---------- */
+function taskRow(t) {
+  const overdue = !t.done && t.due && t.due < today();
+  const idea = t.ideaId && find('ideas', t.ideaId);
+  return `<div class="item ${t.done ? 'done' : ''}">
+    <span class="prio ${t.priority || 'p3'}"></span>
+    <input type="checkbox" class="check" data-toggle="${t.id}" ${t.done ? 'checked' : ''} aria-label="Complete">
+    <div class="item-main" data-edit="tasks:${t.id}">
+      <div class="item-title">${esc(t.title)}</div>
+      <div class="item-meta">
+        ${t.due ? `<span class="badge ${overdue ? 'danger' : t.due === today() ? 'warn' : ''}">${relDate(t.due)}</span>` : ''}
+        ${ventureBadge(t.venture)}
+        ${t.owner ? `<span>@${esc(t.owner)}</span>` : ''}
+        ${idea ? `<span>💡 ${esc(idea.title)}</span>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function viewTasks() {
+  const all = byVenture(db.tasks);
+  const t = today();
+  const tab = state.tasksTab;
+  const seg = `<div class="seg">${[['open', 'Open'], ['done', 'Completed']].map(([k, l]) => `<button class="${tab === k ? 'active' : ''}" data-tasks-tab="${k}">${l}</button>`).join('')}</div>`;
+  if (tab === 'done') {
+    const done = all.filter((x) => x.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+    return `<div class="toolbar">${seg}<span class="spacer"></span>${done.length ? '<button class="btn sm ghost" data-action="clear-done">Clear completed</button>' : ''}</div>
+      <div class="card">${done.length ? `<div class="list">${done.map(taskRow).join('')}</div>` : empty('Nothing completed yet', 'Get after it.')}</div>`;
+  }
+  const open = all.filter((x) => !x.done).sort((a, b) => (a.priority || 'p3').localeCompare(b.priority || 'p3'));
+  const groups = [
+    ['Overdue', open.filter((x) => x.due && x.due < t)],
+    ['Today', open.filter((x) => x.due === t)],
+    ['This week', open.filter((x) => x.due > t && x.due <= addDays(t, 7))],
+    ['Later', open.filter((x) => x.due > addDays(t, 7)).sort((a, b) => a.due.localeCompare(b.due))],
+    ['No date', open.filter((x) => !x.due)],
+  ].filter(([, l]) => l.length);
+  return `<div class="toolbar">${seg}</div>
+    ${groups.length ? groups.map(([name, list]) => `
+      <div class="section"><p class="section-title">${name} · ${list.length}</p><div class="card" style="padding:4px 14px"><div class="list">${list.map(taskRow).join('')}</div></div></div>`).join('')
+      : empty('Inbox zero', 'No open tasks. Tap + to add one.')}`;
+}
+
+/* ---------- View: Notes ---------- */
+function viewNotes() {
+  const q = state.notesQuery.toLowerCase();
+  const notes = byVenture(db.notes)
+    .filter((n) => !q || (n.title + ' ' + n.body).toLowerCase().includes(q))
+    .sort((a, b) => (!!b.pinned - !!a.pinned) || (b.updatedAt || 0) - (a.updatedAt || 0));
+  return `<div class="toolbar"><input type="search" data-notes-search placeholder="Search notes…" value="${esc(state.notesQuery)}" aria-label="Search notes"></div>
+    ${notes.length ? `<div class="grid cards">${notes.map((n) => `
+      <div class="card click" data-edit="notes:${n.id}">
+        <div class="card-head">${n.pinned ? icon('pin') : ''}<h3>${esc(n.title)}</h3></div>
+        <div class="clip muted small">${esc(n.body) || '<i>Empty note</i>'}</div>
+        <div class="row" style="margin-top:12px">${ventureBadge(n.venture)}<span class="spacer"></span><span class="small muted">${n.updatedAt ? new Date(n.updatedAt).toLocaleDateString() : ''}</span></div>
+      </div>`).join('')}</div>` : empty(q ? 'No matching notes' : 'No notes yet', 'Meeting notes, strategy, brain dumps — tap + to write.')}`;
+}
+
+/* ---------- View: Schedule ---------- */
+const sortEvents = (list) => [...list].sort((a, b) => (a.date + (a.start || '99')).localeCompare(b.date + (b.start || '99')));
+const eventTypeLabel = (t) => (EVENT_TYPES.find(([k]) => k === t) || [, 'Event'])[1];
+
+function eventRow(e, showDate = false) {
+  return `<div class="item">
+    <span class="time">${showDate ? fmtDate(e.date, { month: 'short', day: 'numeric' }) : esc(e.start || 'All day')}</span>
+    <div class="item-main" data-edit="events:${e.id}">
+      <div class="item-title">${esc(e.title)}</div>
+      <div class="item-meta">${e.start ? `${esc(e.start)}${e.end ? '–' + esc(e.end) : ''} ·` : ''} ${eventTypeLabel(e.type)} ${ventureBadge(e.venture)}</div>
+    </div>
+  </div>`;
+}
+
+function scheduleIndex() {
+  const byDay = byVenture(db.events).reduce((acc, e) => ((acc[e.date] ||= []).push(e), acc), {});
+  const tasksByDay = byVenture(db.tasks).filter((x) => !x.done && x.due).reduce((acc, x) => ((acc[x.due] ||= []).push(x), acc), {});
+  return { byDay, tasksByDay };
+}
+const isDeadline = (e) => ['deadline', 'launch'].includes(e.type);
+const weekStart = (iso) => { const d = fromISO(iso); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return toISO(d); };
+
+function viewSchedule() {
+  const modes = [['month', 'Month'], ['week', 'Week'], ['deadlines', 'Deadlines']];
+  const seg = `<div class="seg">${modes.map(([k, l]) => `<button class="${state.calMode === k ? 'active' : ''}" data-cal-mode="${k}">${l}</button>`).join('')}</div>`;
+  const body = { month: scheduleMonth, week: scheduleWeek, deadlines: scheduleDeadlines }[state.calMode]();
+  return `<div class="toolbar">${seg}<span class="spacer"></span>
+    <button class="btn sm ghost" data-action="new-deadline">${icon('plus')} Deadline</button>
+    <button class="btn sm ghost" data-action="ics" aria-label="Export to calendar">${icon('download')} .ics</button></div>${body}`;
+}
+
+function dayPanel(iso, idx) {
+  const evs = sortEvents(idx.byDay[iso] || []);
+  const tasks = idx.tasksByDay[iso] || [];
+  return `<div class="card section">
+    <div class="card-head"><h3>${fmtDate(iso, { weekday: 'long', month: 'long', day: 'numeric' })}</h3><button class="link" data-action="new-event">+ Event</button></div>
+    <label class="section-title" for="plan-${iso}">Plan for the day</label>
+    <textarea id="plan-${iso}" class="plan" data-plan="${iso}" placeholder="Top 3 outcomes, themes, what to say no to…">${esc(db.plans[iso] || '')}</textarea>
+    <form class="capture" data-form="day-add" data-date="${iso}" style="margin:12px 0 4px">
+      <input type="text" name="q" placeholder="Add task to this day (or event: …)" autocomplete="off" aria-label="Add to this day">
+      <button class="btn" type="submit" aria-label="Add">${icon('plus')}</button>
+    </form>
+    ${evs.length || tasks.length ? `<div class="list">${evs.map((e) => eventRow(e)).join('')}${tasks.map(taskRow).join('')}</div>` : '<p class="muted small">Nothing scheduled yet.</p>'}
+  </div>`;
+}
+
+function scheduleMonth() {
+  const [y, m] = state.calMonth.split('-').map(Number);
+  const first = new Date(y, m - 1, 1);
+  const start = fromISO(weekStart(toISO(first)));
+  const idx = scheduleIndex();
+  const t = today();
+
+  let cells = '';
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const iso = toISO(d);
+    const evs = idx.byDay[iso] || [];
+    const dots = evs.slice(0, 3).map((e) => `<i style="--c:${isDeadline(e) ? 'var(--danger)' : ventureColor(e.venture)}"></i>`).join('') + (idx.tasksByDay[iso] ? '<i style="--c:var(--warn)"></i>' : '');
+    const cls = [d.getMonth() !== m - 1 && 'out', iso === t && 'today', iso === state.calDay && 'sel', evs.some(isDeadline) && 'dl', db.plans[iso] && 'planned'].filter(Boolean).join(' ');
+    cells += `<button class="day ${cls}" data-day="${iso}">${d.getDate()}<span class="dots">${dots}</span></button>`;
+  }
+  const upcoming = sortEvents(byVenture(db.events).filter((e) => e.date >= t)).slice(0, 6);
+
+  return `<div class="grid two">
+    <div>
+      <div class="card">
+        <div class="cal-head">
+          <h3>${first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h3>
+          <button class="icon-btn" data-month="-1" aria-label="Previous month">${icon('left')}</button>
+          <button class="btn sm ghost" data-action="cal-today">Today</button>
+          <button class="icon-btn" data-month="1" aria-label="Next month">${icon('right')}</button>
+        </div>
+        <div class="cal">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => `<div class="dow">${d}</div>`).join('')}${cells}</div>
+        <div class="legend small muted"><span><i class="dot" style="--c:var(--danger)"></i>Deadline</span><span><i class="dot" style="--c:var(--warn)"></i>Task due</span><span><i class="dot" style="--c:var(--accent)"></i>Event</span><span><u>12</u> Planned</span></div>
+      </div>
+    </div>
+    <div>
+      ${dayPanel(state.calDay, idx)}
+      <div class="card">
+        <div class="card-head"><h3>Upcoming</h3></div>
+        ${upcoming.length ? `<div class="list">${upcoming.map((e) => eventRow(e, true)).join('')}</div>` : empty('Nothing upcoming', 'Add meetings, launches and deadlines.')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function scheduleWeek() {
+  const start = weekStart(state.calDay);
+  const idx = scheduleIndex();
+  const t = today();
+  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  const range = `${fmtDate(days[0], { month: 'short', day: 'numeric' })} – ${fmtDate(days[6], { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  return `<div class="cal-head">
+      <h3>${range}</h3>
+      <button class="icon-btn" data-week="-1" aria-label="Previous week">${icon('left')}</button>
+      <button class="btn sm ghost" data-action="cal-today">This week</button>
+      <button class="icon-btn" data-week="1" aria-label="Next week">${icon('right')}</button>
+    </div>
+    <div class="week">${days.map((iso) => {
+      const evs = sortEvents(idx.byDay[iso] || []);
+      const tasks = idx.tasksByDay[iso] || [];
+      return `<div class="card week-day ${iso === t ? 'is-today' : ''} ${iso < t ? 'past' : ''}">
+        <div class="card-head"><h3>${fmtDate(iso, { weekday: 'short' })} <span class="muted">${fromISO(iso).getDate()}</span></h3>
+          <button class="icon-btn bare" data-add-day="${iso}" aria-label="Add event on ${fmtDate(iso)}">${icon('plus')}</button></div>
+        ${db.plans[iso] ? `<div class="plan-snippet clip small" data-day="${iso}" data-go-month>${esc(db.plans[iso])}</div>` : ''}
+        ${evs.length || tasks.length ? `<div class="list">${evs.map((e) => eventRow(e)).join('')}${tasks.map(taskRow).join('')}</div>`
+          : `<button class="link small muted plan-link" data-day="${iso}" data-go-month>Plan this day →</button>`}
+      </div>`;
+    }).join('')}</div>`;
+}
+
+function scheduleDeadlines() {
+  const t = today();
+  const items = [
+    ...byVenture(db.events).filter(isDeadline).map((e) => ({ date: e.date, html: deadlineRow(e.date, e.title, `${eventTypeLabel(e.type)} ${ventureBadge(e.venture)}`, `events:${e.id}`) })),
+    ...byVenture(db.tasks).filter((x) => !x.done && x.due).map((x) => ({ date: x.due, html: deadlineRow(x.due, x.title, `Task · ${(x.priority || 'p3').toUpperCase()} ${ventureBadge(x.venture)}`, `tasks:${x.id}`) })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+  const groups = [
+    ['Overdue', (d) => d < t],
+    ['Next 7 days', (d) => d >= t && d <= addDays(t, 7)],
+    ['Next 30 days', (d) => d > addDays(t, 7) && d <= addDays(t, 30)],
+    ['Later', (d) => d > addDays(t, 30)],
+  ].map(([name, fn]) => [name, items.filter((i) => fn(i.date))]).filter(([, l]) => l.length);
+  if (!groups.length) return empty('No deadlines', 'Add launches, investor updates, filing dates… Tap “+ Deadline”.');
+  return groups.map(([name, list]) => `<div class="section"><p class="section-title">${name} · ${list.length}</p>
+    <div class="card" style="padding:4px 14px"><div class="list">${list.map((i) => i.html).join('')}</div></div></div>`).join('');
+}
+
+function deadlineRow(date, title, meta, edit) {
+  const days = Math.round((fromISO(date) - fromISO(today())) / 864e5);
+  const tone = days < 0 ? 'danger' : days <= 2 ? 'warn' : days <= 7 ? '' : 'ok';
+  const label = days < 0 ? `${-days}d late` : days === 0 ? 'Today' : `${days}d`;
+  return `<div class="item">
+    <span class="countdown badge ${tone}">${label}</span>
+    <div class="item-main" data-edit="${edit}">
+      <div class="item-title">${esc(title)}</div>
+      <div class="item-meta">${fmtDate(date)} · ${meta}</div>
+    </div>
+  </div>`;
+}
+
+function exportICS() {
+  const stamp = (date, time) => date.replace(/-/g, '') + (time ? 'T' + time.replace(':', '') + '00' : '');
+  const escICS = (s) => String(s || '').replace(/[\\;,]/g, (c) => '\\' + c).replace(/\n/g, '\\n');
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Lumid HQ//EN'];
+  byVenture(db.events).forEach((e) => {
+    lines.push('BEGIN:VEVENT', `UID:${e.id}@lumid-hq`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`);
+    if (e.start) {
+      lines.push(`DTSTART:${stamp(e.date, e.start)}`, `DTEND:${stamp(e.date, e.end || e.start)}`);
+    } else {
+      lines.push(`DTSTART;VALUE=DATE:${stamp(e.date)}`, `DTEND;VALUE=DATE:${stamp(addDays(e.date, 1))}`);
+    }
+    lines.push(`SUMMARY:${escICS(e.title)}`, `DESCRIPTION:${escICS([e.venture, e.notes].filter(Boolean).join(' — '))}`, 'END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  download('lumid-hq-schedule.ics', lines.join('\r\n'), 'text/calendar');
+}
+
+/* ---------- View: Goals ---------- */
+const goalProgress = (g) => g.keyResults?.length ? Math.round(g.keyResults.reduce((s, k) => s + (Number(k.progress) || 0), 0) / g.keyResults.length) : 0;
+
+function viewGoals() {
+  const goals = byVenture(db.goals);
+  if (!goals.length) return empty('No goals set', 'Define this quarter’s objectives and key results. Tap +.');
+  return `<div class="grid two">${goals.map((g) => {
+    const p = goalProgress(g);
+    return `<div class="card">
+      <div class="row" style="flex-wrap:nowrap;align-items:flex-start">
+        <div class="item-main" data-edit="goals:${g.id}">
+          <h3 style="font-size:16px">${esc(g.title)}</h3>
+          <div class="row" style="margin-top:6px">${ventureBadge(g.venture)}<span class="small muted">${esc(g.quarter || '')}</span></div>
+        </div>
+        <div class="ring" style="--p:${p}"><span>${p}%</span></div>
+      </div>
+      ${(g.keyResults || []).map((k, i) => `
+        <div class="kr">
+          <div class="kr-row"><span>${esc(k.text)}</span><b>${k.progress || 0}%</b></div>
+          <input type="range" min="0" max="100" step="5" value="${k.progress || 0}" data-kr="${g.id}:${i}" aria-label="Progress for ${esc(k.text)}">
+        </div>`).join('')}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/* ---------- View: Metrics ---------- */
+function sparkline(values) {
+  if (values.length < 2) return '';
+  const min = Math.min(...values), max = Math.max(...values), range = max - min || 1;
+  const pts = values.map((v, i) => `${(i / (values.length - 1)) * 100},${34 - ((v - min) / range) * 30}`).join(' ');
+  return `<svg class="spark" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true">
+    <polyline points="${pts}" fill="none" stroke="var(--accent-2)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`;
+}
+const metricValue = (m, v) => {
+  const u = (m.unit || '').trim();
+  if (['$', '€', '£', '₹'].includes(u)) return u + fmtNum(v);
+  if (u === '%') return fmtNum(v) + '%';
+  return u ? `${fmtNum(v)} <small class="muted" style="font-size:13px">${esc(u)}</small>` : fmtNum(v);
+};
+function metricDelta(m) {
+  const e = sortedEntries(m);
+  if (e.length < 2) return '';
+  const a = e[e.length - 2].value, b = e[e.length - 1].value;
+  if (!a) return '';
+  const pct = ((b - a) / Math.abs(a)) * 100;
+  return `<span class="delta ${pct >= 0 ? 'up' : 'down'}">${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct).toFixed(1)}%</span>`;
+}
+const sortedEntries = (m) => [...(m.entries || [])].sort((a, b) => a.date.localeCompare(b.date));
+
+function metricTile(m) {
+  const e = sortedEntries(m);
+  const last = e.at(-1);
+  return `<div class="tile card click" data-log="${m.id}">
+    <div class="label"><span class="dot" style="--c:${ventureColor(m.venture)}"></span>${esc(m.name)}</div>
+    <div class="value">${last ? metricValue(m, last.value) : '—'}</div>
+    <div class="delta">${metricDelta(m) || '<span class="muted">log a value</span>'}</div>
+    ${sparkline(e.map((x) => x.value))}
+  </div>`;
+}
+
+function viewMetrics() {
+  const metrics = byVenture(db.metrics);
+  if (!metrics.length) return empty('No KPIs tracked', 'Add MRR, users, runway, burn… Tap +.');
+  return `<div class="grid two">${metrics.map((m) => {
+    const e = sortedEntries(m);
+    const last = e.at(-1);
+    const pct = m.target && last ? clamp(Math.round((last.value / m.target) * 100), 0, 100) : null;
+    return `<div class="card">
+      <div class="card-head"><span class="dot" style="--c:${ventureColor(m.venture)}"></span><h3>${esc(m.name)}</h3>
+        <button class="link" data-edit="metrics:${m.id}">Edit</button></div>
+      <div class="row" style="align-items:baseline"><span class="tile value" style="border:0;padding:0;background:none">${last ? metricValue(m, last.value) : '—'}</span>${metricDelta(m)}</div>
+      ${sparkline(e.map((x) => x.value))}
+      ${pct !== null ? `<div class="kr"><div class="kr-row"><span class="muted">Target ${metricValue(m, m.target)}</span><b>${pct}%</b></div><div class="progress"><span style="width:${pct}%"></span></div></div>` : ''}
+      <div class="row" style="margin-top:14px">
+        <span class="small muted">${e.length} entries${last ? ' · last ' + relDate(last.date).toLowerCase() : ''}</span><span class="spacer"></span>
+        <button class="btn sm" data-log="${m.id}">${icon('plus')} Log value</button>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function openLog(id) {
+  const m = find('metrics', id);
+  if (!m) return;
+  const recent = sortedEntries(m).slice(-5).reverse();
+  openModal(`Log · ${esc(m.name)}`, `
+    <form id="log-form" data-form="log" data-id="${id}">
+      <div class="field-row">
+        <div class="field"><label>Value</label><input type="number" step="any" name="value" required inputmode="decimal" autofocus></div>
+        <div class="field"><label>Date</label><input type="date" name="date" value="${today()}" required></div>
+      </div>
+    </form>
+    ${recent.length ? `<p class="section-title">Recent</p><div class="list">${recent.map((r) => `<div class="item"><span class="item-main">${fmtDate(r.date)}</span><b>${metricValue(m, r.value)}</b></div>`).join('')}</div>` : ''}`,
+  `<button class="btn ghost" data-action="close">Cancel</button><span class="spacer"></span><button class="btn" type="submit" form="log-form">Save</button>`);
+}
+
+/* ---------- View: Decisions ---------- */
+function viewDecisions() {
+  const list = byVenture(db.decisions).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  if (!list.length) return empty('Decision log is empty', 'Record key calls & why you made them — your future self will thank you.');
+  return `<div class="card" style="padding:4px 16px"><div class="list">${list.map((d) => `
+    <div class="item"><div class="item-main" data-edit="decisions:${d.id}">
+      <div class="item-title">${esc(d.title)}</div>
+      ${d.rationale ? `<div class="clip small muted" style="margin-top:4px">${esc(d.rationale)}</div>` : ''}
+      <div class="item-meta">${d.date ? fmtDate(d.date) : ''} ${ventureBadge(d.venture)} ${d.review ? `<span class="badge ${d.review <= today() ? 'warn' : ''}">Review ${relDate(d.review).toLowerCase()}</span>` : ''}</div>
+    </div></div>`).join('')}</div></div>`;
+}
+
+/* ---------- View: People ---------- */
+function viewPeople() {
+  const list = byVenture(db.people).sort((a, b) => (a.followUp || '9999').localeCompare(b.followUp || '9999'));
+  if (!list.length) return empty('No contacts yet', 'Investors, advisors, hires, partners — track who to follow up with.');
+  return `<div class="card" style="padding:4px 16px"><div class="list">${list.map((p) => `
+    <div class="item">
+      <div class="avatar" style="--c:${ventureColor(p.venture)}">${esc((p.name || '?').trim().charAt(0).toUpperCase())}</div>
+      <div class="item-main" data-edit="people:${p.id}">
+        <div class="item-title">${esc(p.name)}</div>
+        <div class="item-meta">${[p.role, p.company].filter(Boolean).map(esc).join(' · ')} ${p.followUp ? `<span class="badge ${p.followUp <= today() ? 'warn' : ''}">Follow up ${relDate(p.followUp).toLowerCase()}</span>` : ''}</div>
+      </div>
+      ${p.email ? `<a class="icon-btn bare" href="mailto:${esc(p.email)}" aria-label="Email ${esc(p.name)}">✉️</a>` : ''}
+    </div>`).join('')}</div></div>`;
+}
+
+/* ---------- View: Resources ---------- */
+const PLATFORMS = {
+  youtube: { label: 'YouTube', emoji: '▶️', color: '#ff4d4d' },
+  reel: { label: 'Instagram', emoji: '📸', color: '#e1306c' },
+  tiktok: { label: 'TikTok', emoji: '🎵', color: '#25f4ee' },
+  x: { label: 'X', emoji: '𝕏', color: '#8d94a8' },
+  linkedin: { label: 'LinkedIn', emoji: '💼', color: '#0a66c2' },
+  podcast: { label: 'Podcast', emoji: '🎧', color: '#9be15d' },
+  link: { label: 'Article', emoji: '🔗', color: '#5aa9ff' },
+};
+const URL_RE = /https?:\/\/[^\s]+/i;
+
+function normalizeUrl(u) {
+  const s = String(u || '').trim();
+  if (!s) return '';
+  const url = /^https?:\/\//i.test(s) ? s : 'https://' + s;
+  try { return new URL(url).href; } catch { return ''; }
+}
+
+function detectPlatform(url) {
+  let host = '';
+  try { host = new URL(url).hostname.replace(/^www\.|^m\./, ''); } catch { return 'link'; }
+  if (/youtube\.com$|youtu\.be$/.test(host)) return 'youtube';
+  if (/instagram\.com$/.test(host)) return 'reel';
+  if (/tiktok\.com$/.test(host)) return 'tiktok';
+  if (/(^|\.)x\.com$|twitter\.com$/.test(host)) return 'x';
+  if (/linkedin\.com$/.test(host)) return 'linkedin';
+  if (/spotify\.com$|podcasts\.apple\.com$/.test(host)) return 'podcast';
+  return 'link';
+}
+
+function youtubeId(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname.endsWith('youtu.be')) return u.pathname.slice(1).split('/')[0];
+    if (u.searchParams.get('v')) return u.searchParams.get('v');
+    const m = u.pathname.match(/\/(shorts|embed|live)\/([\w-]{6,})/);
+    return m ? m[2] : '';
+  } catch { return ''; }
+}
+
+const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } };
+
+// Best-effort title lookup; the link is saved regardless.
+async function fetchTitle(res) {
+  try {
+    const r = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(res.url)}`);
+    const data = await r.json();
+    const cur = find('resources', res.id);
+    if (data.title && cur && cur.title === res.title) {
+      cur.title = data.title;
+      if (data.author_name && !cur.author) cur.author = data.author_name;
+      store.save();
+      render();
+    }
+  } catch {}
+}
+
+function addResource(url, title = '', extra = {}) {
+  const href = normalizeUrl(url);
+  if (!href) return toast('That link doesn’t look valid');
+  const platform = detectPlatform(href);
+  const res = { id: uid(), url: href, platform, title: title || `${PLATFORMS[platform].label} · ${hostOf(href)}`, status: 'watch', venture: state.venture !== 'All' ? state.venture : 'General', notes: '', createdAt: Date.now(), ...extra };
+  upsert('resources', res);
+  if (!title) fetchTitle(res);
+  return res;
+}
+
+function resourceCard(r) {
+  const p = PLATFORMS[r.platform] || PLATFORMS.link;
+  const yt = r.platform === 'youtube' && youtubeId(r.url);
+  const done = r.status === 'done';
+  return `<div class="card res ${done ? 'is-done' : ''}">
+    <a class="thumb" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer" style="--c:${p.color}" aria-label="Open ${esc(r.title)}">
+      <span class="thumb-emoji">${p.emoji}</span>
+      ${yt ? `<img src="https://i.ytimg.com/vi/${encodeURIComponent(yt)}/mqdefault.jpg" alt="" loading="lazy" onerror="this.remove()">` : ''}
+      <span class="thumb-tag">${p.label}</span>
+    </a>
+    <div class="item-main" data-edit="resources:${r.id}">
+      <div class="idea-title clip2">${esc(r.title)}</div>
+      <div class="small muted">${esc(r.author || hostOf(r.url))}</div>
+      ${r.notes ? `<div class="clip small muted" style="margin-top:6px">${esc(r.notes)}</div>` : ''}
+    </div>
+    <div class="row" style="margin-top:10px">
+      ${ventureBadge(r.venture)}<span class="spacer"></span>
+      <button class="btn sm ${done ? 'ghost' : ''}" data-res-done="${r.id}">${done ? 'Watched ✓' : 'Mark watched'}</button>
+    </div>
+  </div>`;
+}
+
+function viewResources() {
+  const q = state.resQuery.toLowerCase();
+  const all = byVenture(db.resources);
+  const tab = state.resTab;
+  const list = all
+    .filter((r) => tab === 'all' || r.status === tab)
+    .filter((r) => !q || [r.title, r.notes, r.url, r.author].join(' ').toLowerCase().includes(q))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const count = (k) => all.filter((r) => k === 'all' || r.status === k).length;
+  const seg = `<div class="seg">${[...RES_STATUS, ['all', 'All']].map(([k, l]) => `<button class="${tab === k ? 'active' : ''}" data-res-tab="${k}">${l} <span class="muted">${count(k)}</span></button>`).join('')}</div>`;
+  return `<form class="capture section" data-form="res-add">
+      <input type="text" name="url" placeholder="Paste a reel, YouTube or article link…" autocomplete="off" inputmode="url" aria-label="Paste link" required>
+      <button class="btn" type="submit">Save</button>
+    </form>
+    <div class="toolbar">${seg}<input type="search" data-res-search placeholder="Search resources…" value="${esc(state.resQuery)}" aria-label="Search resources"></div>
+    ${list.length ? `<div class="grid cards">${list.map(resourceCard).join('')}</div>`
+      : empty(q ? 'No matching resources' : 'Nothing here yet', 'Paste links to reels, YouTube videos, podcasts or articles to watch later. Tip: on Android, share straight to Lumid HQ once installed.')}`;
+}
+
+/* ---------- View: Settings ---------- */
+function viewSettings() {
+  const counts = VIEWS.filter((v) => v.col).map((v) => `${db[v.col].length} ${v.label.toLowerCase()}`).join(' · ');
+  return `<div class="grid two">
+    <div class="card">
+      <div class="card-head"><h3>Ventures</h3></div>
+      <p class="small muted">Your companies & workstreams. Comma-separated. Use <code>#lastword</code> in quick capture to tag.</p>
+      <form data-form="ventures" class="capture">
+        <input type="text" name="ventures" value="${esc(db.ventures.join(', '))}" aria-label="Ventures">
+        <button class="btn" type="submit">Save</button>
+      </form>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>☁️ Cloud sync</h3></div>
+      ${cloudCard()}
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Backup</h3></div>
+      <p class="small muted">Data is always saved on this device (${counts}). Export regularly or move it to another device.</p>
+      <div class="row">
+        <button class="btn ghost" data-action="export">${icon('download')} Export JSON</button>
+        <label class="btn ghost">${icon('upload')} Import<input type="file" accept="application/json" data-import hidden></label>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Install on your phone</h3></div>
+      <p class="small muted">iPhone: Safari → Share → <b>Add to Home Screen</b>.<br>Android: Chrome → ⋮ → <b>Install app</b>.<br>Works offline once installed.</p>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Danger zone</h3></div>
+      <div class="row">
+        <button class="btn danger" data-action="reset">Erase all data</button>
+        <button class="btn ghost" data-action="demo">Load demo data</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+const RENDERERS = { today: viewToday, ideas: viewIdeas, tasks: viewTasks, notes: viewNotes, resources: viewResources, schedule: viewSchedule, goals: viewGoals, metrics: viewMetrics, decisions: viewDecisions, people: viewPeople, settings: viewSettings };
+
+/* ---------- Modal & generic editor ---------- */
+const modal = $('#modal');
+
+function openModal(title, body, foot) {
+  modal.innerHTML = `
+    <div class="modal-head"><h2>${title}</h2><button class="icon-btn bare" data-action="close" aria-label="Close">${icon('close')}</button></div>
+    <div class="modal-body">${body}</div>
+    ${foot ? `<div class="modal-foot">${foot}</div>` : ''}`;
+  if (!modal.open) modal.showModal();
+  const first = $('[autofocus], input:not([type=hidden]):not([type=checkbox]):not([type=range]), textarea', modal);
+  if (first && window.matchMedia('(min-width: 901px)').matches) first.focus();
+}
+const closeModal = () => modal.open && modal.close();
+
+function fieldHTML(f, item) {
+  const raw = item[f.k] ?? (typeof f.def === 'function' ? f.def() : f.def) ?? '';
+  const id = `f-${f.k}`;
+  const req = f.req ? 'required' : '';
+  const ph = f.ph ? `placeholder="${esc(f.ph)}"` : '';
+  let input;
+  switch (f.type) {
+    case 'textarea':
+      input = `<textarea id="${id}" name="${f.k}" ${ph} class="${f.tall ? 'tall' : ''}">${esc(raw)}</textarea>`; break;
+    case 'krs':
+      input = `<textarea id="${id}" name="${f.k}" ${ph}>${esc((raw || []).map((k) => k.text).join('\n'))}</textarea>`; break;
+    case 'venture':
+      input = `<select id="${id}" name="${f.k}">${db.ventures.map((v) => `<option ${v === (raw || (state.venture !== 'All' ? state.venture : db.ventures[0])) ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>`; break;
+    case 'select':
+      input = `<select id="${id}" name="${f.k}">${f.options.map(([v, l]) => `<option value="${v}" ${v === raw ? 'selected' : ''}>${l}</option>`).join('')}</select>`; break;
+    case 'range':
+      return `<div class="field"><label for="${id}">${f.label}<span class="range-val">${raw}</span></label><input type="range" id="${id}" name="${f.k}" min="${f.min}" max="${f.max}" value="${raw}" oninput="this.previousElementSibling.lastChild.textContent=this.value"></div>`;
+    case 'checkbox':
+      return `<div class="field"><label>&nbsp;</label><label class="row" style="color:var(--text);font-size:15px"><input type="checkbox" class="check" name="${f.k}" ${raw ? 'checked' : ''}> ${f.label}</label></div>`;
+    default:
+      input = `<input type="${f.type}" id="${id}" name="${f.k}" value="${esc(raw)}" ${ph} ${req} ${f.type === 'number' ? 'step="any" inputmode="decimal"' : ''} autocomplete="off">`;
+  }
+  return `<div class="field"><label for="${id}">${f.label}</label>${input}</div>`;
+}
+
+function openEditor(col, id, preset = {}) {
+  const schema = SCHEMAS[col];
+  const item = id ? find(col, id) : preset;
+  if (id && !item) return;
+  const body = `<form id="editor" data-form="editor" data-col="${col}" data-id="${id || ''}">
+    ${schema.fields.map((f) => f.row ? `<div class="field-row">${f.row.map((x) => fieldHTML(x, item)).join('')}</div>` : fieldHTML(f, item)).join('')}
+  </form>`;
+  const foot = `${id ? `<button class="btn danger" data-action="delete" data-col="${col}" data-id="${id}" aria-label="Delete">${icon('trash')}</button>` : ''}
+    <span class="spacer"></span>
+    <button class="btn ghost" type="button" data-action="close">Cancel</button>
+    <button class="btn" type="submit" form="editor">${id ? 'Save' : 'Add ' + schema.label.toLowerCase()}</button>`;
+  openModal(`${id ? 'Edit' : 'New'} ${schema.label.toLowerCase()}`, body, foot);
+}
+
+function saveEditor(form) {
+  const col = form.dataset.col;
+  const id = form.dataset.id;
+  const existing = id ? find(col, id) : null;
+  const item = existing ? { ...existing } : { id: uid(), createdAt: Date.now() };
+  const fd = new FormData(form);
+  const flat = SCHEMAS[col].fields.flatMap((f) => f.row || [f]);
+  for (const f of flat) {
+    const v = fd.get(f.k);
+    if (f.type === 'checkbox') item[f.k] = v === 'on';
+    else if (f.type === 'range') item[f.k] = Number(v);
+    else if (f.type === 'number') item[f.k] = v === '' ? null : Number(v);
+    else if (f.type === 'krs') {
+      const prev = existing?.keyResults || [];
+      item.keyResults = String(v).split('\n').map((s) => s.trim()).filter(Boolean)
+        .map((text, i) => ({ text, progress: (prev.find((k) => k.text === text) || prev[i] || {}).progress || 0 }));
+    } else item[f.k] = String(v ?? '').trim();
+  }
+  if (col === 'resources') {
+    item.url = normalizeUrl(item.url);
+    if (!item.url) return toast('That link doesn’t look valid');
+    item.platform = detectPlatform(item.url);
+    item.title ||= `${PLATFORMS[item.platform].label} · ${hostOf(item.url)}`;
+  }
+  if (col === 'notes') item.updatedAt = Date.now();
+  if (col === 'tasks' && item.done === undefined) item.done = false;
+  if (col === 'metrics' && !item.entries) item.entries = [];
+  upsert(col, item);
+  closeModal();
+  render();
+  toast(`${SCHEMAS[col].label} saved`);
+}
+
+/* ---------- Search ---------- */
+function openSearch() {
+  openModal('Search', `<input type="search" class="search-input" id="search-q" placeholder="Search everything…" autocomplete="off" autofocus aria-label="Search everything"><div class="results" id="search-results"></div>`);
+  const input = $('#search-q');
+  input.focus();
+  runSearch('');
+}
+
+function runSearch(q) {
+  const needle = q.trim().toLowerCase();
+  const results = [];
+  for (const v of VIEWS.filter((x) => x.col)) {
+    for (const item of db[v.col]) {
+      const text = [item.title, item.name, item.body, item.notes, item.context, item.rationale, item.company, item.role].filter(Boolean).join(' ');
+      if (!needle || text.toLowerCase().includes(needle)) results.push({ col: v.col, kind: SCHEMAS[v.col].label, item });
+    }
+  }
+  const html = results.slice(0, needle ? 40 : 0).map(({ col, kind, item }) => `
+    <button class="result" data-edit="${col}:${item.id}"><span class="kind">${kind}</span><span class="item-main">${esc(item.title || item.name)}</span>${ventureBadge(item.venture)}</button>`).join('');
+  $('#search-results').innerHTML = html || (needle
+    ? `<p class="muted small">No results for “${esc(q)}”.</p>`
+    : `<div class="more-grid">${VIEWS.map((v) => `<button class="nav-link" data-nav="${v.id}">${icon(v.id)}${v.label}</button>`).join('')}</div>`);
+}
+
+function openMore() {
+  openModal('More', `<div class="more-grid">${VIEWS.filter((v) => !MOBILE_TABS.includes(v.id)).map((v) => `<button class="nav-link" data-nav="${v.id}">${icon(v.id)}${v.label}</button>`).join('')}</div>`);
+}
+
+/* ---------- Toast ---------- */
+let toastTimer;
+function toast(msg, actionLabel, onAction) {
+  const el = $('#toast');
+  el.innerHTML = `<span>${esc(msg)}</span>${actionLabel ? `<button type="button">${esc(actionLabel)}</button>` : ''}`;
+  if (actionLabel) $('button', el).onclick = () => { el.classList.remove('show'); onAction(); };
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), actionLabel ? 5000 : 2200);
+}
+
+/* ---------- Files ---------- */
+function download(name, content, type = 'application/json') {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function importJSON(file) {
+  try {
+    const data = JSON.parse(await file.text());
+    if (!Array.isArray(data.ventures)) throw new Error('bad file');
+    if (!confirm('Replace all current data with this backup?')) return;
+    db = { ...emptyDb(), ...data };
+    store.save();
+    render();
+    toast('Backup restored');
+  } catch { toast('That file is not a valid Lumid HQ backup'); }
+}
+
+/* ---------- Theme ---------- */
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  $('meta[name="theme-color"]').content = theme === 'light' ? '#f5f6fa' : '#0b0d12';
+}
+function initTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem(THEME_KEY); } catch {}
+  applyTheme(saved || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
+}
+
+/* ---------- Events ---------- */
+const ACTIONS = {
+  search: openSearch,
+  more: openMore,
+  close: closeModal,
+  theme() {
+    const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    applyTheme(next);
+    try { localStorage.setItem(THEME_KEY, next); } catch {}
+  },
+  fab() {
+    const v = VIEWS.find((x) => x.id === state.view);
+    if (v.col) openEditor(v.col);
+    else { const input = $('[data-form="capture"] input'); input ? input.focus() : openEditor('ideas'); }
+  },
+  delete: (el) => { closeModal(); remove(el.dataset.col, el.dataset.id); },
+  'idea-to-task': (el) => ideaToTask(el.dataset.id),
+  'new-event': () => openEditor('events'),
+  'new-deadline': () => openEditor('events', null, { type: 'deadline' }),
+  'cal-today': () => { state.calMonth = today().slice(0, 7); state.calDay = today(); render(); },
+  'clear-done': () => {
+    if (!confirm('Remove all completed tasks?')) return;
+    const ids = new Set(byVenture(db.tasks).filter((t) => t.done).map((t) => t.id));
+    db.tasks = db.tasks.filter((t) => !ids.has(t.id));
+    store.save(); render();
+  },
+  ics: exportICS,
+  export: () => download(`lumid-hq-backup-${today()}.json`, JSON.stringify(db, null, 2)),
+  reset: () => {
+    if (!confirm('Erase ALL data on this device? Export a backup first if unsure.')) return;
+    db = emptyDb(); store.save(); render(); toast('All data erased');
+  },
+  'cloud-sync': () => cloud.pull(),
+  'cloud-signout': () => cloud.signOut(),
+  'cloud-disconnect': () => { if (confirm('Disconnect cloud sync on this device? Your data stays here and in the cloud.')) cloud.disconnect(); },
+  demo: () => {
+    if (!confirm('Replace current data with demo data?')) return;
+    db = seed(); store.save(); render();
+  },
+};
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-action],[data-nav],[data-venture],[data-edit],[data-day],[data-month],[data-log],[data-tasks-tab],[data-cal-mode],[data-week],[data-add-day],[data-res-tab],[data-res-done]');
+  if (!el || e.target.closest('select, input[type=checkbox], input[type=range]')) return;
+  const d = el.dataset;
+  if (d.action) return ACTIONS[d.action]?.(el);
+  if (d.nav) { closeModal(); return go(d.nav); }
+  if (d.venture) { state.venture = d.venture; return render(); }
+  if (d.log) return openLog(d.log);
+  if (d.edit) { const [col, id] = d.edit.split(':'); return openEditor(col, id); }
+  if (d.calMode) { state.calMode = d.calMode; return render(); }
+  if (d.week) { state.calDay = addDays(state.calDay, 7 * Number(d.week)); state.calMonth = state.calDay.slice(0, 7); return render(); }
+  if (d.addDay) { state.calDay = d.addDay; return openEditor('events'); }
+  if (d.resTab) { state.resTab = d.resTab; return render(); }
+  if (d.resDone) {
+    const r = find('resources', d.resDone);
+    if (r) { r.status = r.status === 'done' ? 'watch' : 'done'; store.save(); render(); }
+    return;
+  }
+  if (d.day) {
+    if ('goMonth' in d) { state.calMode = 'month'; if (state.view !== 'schedule') go('schedule'); }
+    state.calDay = d.day;
+    state.calMonth = d.day.slice(0, 7);
+    return render();
+  }
+  if (d.month) {
+    const [y, m] = state.calMonth.split('-').map(Number);
+    state.calMonth = toISO(new Date(y, m - 1 + Number(d.month), 1)).slice(0, 7);
+    return render();
+  }
+  if (d.tasksTab) { state.tasksTab = d.tasksTab; return render(); }
+});
+
+document.addEventListener('change', (e) => {
+  const el = e.target;
+  if (el.dataset.toggle) {
+    const t = find('tasks', el.dataset.toggle);
+    if (!t) return;
+    t.done = el.checked;
+    t.doneAt = t.done ? Date.now() : null;
+    store.save();
+    if (t.done) toast('Task completed ✓', 'Undo', () => { t.done = false; t.doneAt = null; store.save(); render(); });
+    setTimeout(render, t.done ? 350 : 0);
+  } else if (el.dataset.stage) {
+    const i = find('ideas', el.dataset.stage);
+    if (i) { i.stage = el.value; store.save(); render(); }
+  } else if (el.dataset.kr) {
+    const [gid, idx] = el.dataset.kr.split(':');
+    const g = find('goals', gid);
+    if (g) { g.keyResults[idx].progress = Number(el.value); store.save(); render(); }
+  } else if (el.matches('[data-import]') && el.files[0]) {
+    importJSON(el.files[0]);
+    el.value = '';
+  }
+});
+
+let planTimer;
+document.addEventListener('input', (e) => {
+  const searchAttr = ['data-notes-search', 'data-res-search'].find((a) => e.target.hasAttribute(a));
+  if (searchAttr) {
+    state[searchAttr === 'data-notes-search' ? 'notesQuery' : 'resQuery'] = e.target.value;
+    const pos = e.target.selectionStart;
+    render();
+    const input = $(`[${searchAttr}]`);
+    input.focus();
+    input.setSelectionRange(pos, pos);
+  } else if (e.target.dataset.plan) {
+    const v = e.target.value.trim();
+    if (v) db.plans[e.target.dataset.plan] = e.target.value; else delete db.plans[e.target.dataset.plan];
+    clearTimeout(planTimer);
+    planTimer = setTimeout(() => store.save(), 400);
+  } else if (e.target.id === 'search-q') {
+    runSearch(e.target.value);
+  } else if (e.target.dataset.kr) {
+    e.target.previousElementSibling.querySelector('b').textContent = e.target.value + '%';
+  }
+});
+
+document.addEventListener('submit', (e) => {
+  const form = e.target;
+  if (!form.dataset.form) return;
+  e.preventDefault();
+  switch (form.dataset.form) {
+    case 'capture': {
+      const input = form.elements.q;
+      capture(input.value);
+      input.value = '';
+      break;
+    }
+    case 'editor': saveEditor(form); break;
+    case 'res-add': {
+      if (addResource(form.elements.url.value)) { form.reset(); state.resTab = 'watch'; render(); toast('Saved to watch list'); }
+      break;
+    }
+    case 'day-add': {
+      const input = form.elements.q;
+      if (!input.value.trim()) break;
+      capture(input.value, form.dataset.date, 'tasks');
+      input.value = '';
+      break;
+    }
+    case 'log': {
+      const m = find('metrics', form.dataset.id);
+      const fd = new FormData(form);
+      (m.entries ||= []).push({ date: fd.get('date'), value: Number(fd.get('value')) });
+      store.save(); closeModal(); render(); toast(`${m.name} logged`);
+      break;
+    }
+    case 'cloud-config':
+      cloud.connect(form.elements.url.value, form.elements.key.value);
+      break;
+    case 'cloud-auth': {
+      const create = e.submitter?.value === 'signup';
+      cloud.signIn(form.elements.email.value.trim(), form.elements.password.value, create);
+      break;
+    }
+    case 'ventures': {
+      const list = [...new Set(form.elements.ventures.value.split(',').map((s) => s.trim()).filter(Boolean))];
+      if (!list.length) return toast('Add at least one venture');
+      db.ventures = list;
+      if (!list.includes(state.venture)) state.venture = 'All';
+      store.save(); render(); toast('Ventures updated');
+      break;
+    }
+  }
+});
+
+// Drag & drop ideas between stages (desktop); mobile uses the stage selector.
+document.addEventListener('dragstart', (e) => {
+  const card = e.target.closest?.('[data-drag]');
+  if (card) e.dataTransfer.setData('text/plain', card.dataset.drag);
+});
+document.addEventListener('dragover', (e) => {
+  const col = e.target.closest?.('[data-drop]');
+  if (!col) return;
+  e.preventDefault();
+  $$('.col.drag-over').forEach((c) => c !== col && c.classList.remove('drag-over'));
+  col.classList.add('drag-over');
+});
+document.addEventListener('drop', (e) => {
+  const col = e.target.closest?.('[data-drop]');
+  if (!col) return;
+  e.preventDefault();
+  const idea = find('ideas', e.dataTransfer.getData('text/plain'));
+  if (idea) { idea.stage = col.dataset.drop; store.save(); }
+  render();
+});
+document.addEventListener('dragend', () => $$('.col.drag-over').forEach((c) => c.classList.remove('drag-over')));
+
+// Close modal on backdrop tap
+modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openSearch(); return; }
+  if (modal.open || e.target.closest('input, textarea, select')) return;
+  const keys = { n: () => ACTIONS.fab(), '/': openSearch, g: () => go('today') };
+  if (keys[e.key]) { e.preventDefault(); keys[e.key](); }
+  const idx = Number(e.key) - 1;
+  if (idx >= 0 && idx < VIEWS.length) go(VIEWS[idx].id);
+});
+
+// Sync across tabs
+window.addEventListener('storage', (e) => { if (e.key === STORE_KEY) { db = store.load(); render(); } });
+
+/* ---------- Cloud sync (optional, Supabase) ---------- */
+// Local-first: localStorage is the source of truth on each device; the whole
+// dataset is mirrored to one row per user. Conflicts resolve last-write-wins.
+const CLOUD_KEY = 'lumid-hq-cloud';
+const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+const SYNC_LABELS = { off: '', 'signed-out': 'Sign in to sync', syncing: 'Syncing…', synced: 'Synced', offline: 'Offline', error: 'Sync error' };
+
+const cloud = {
+  cfg: {},
+  client: null,
+  user: null,
+  status: 'off',
+  timer: null,
+
+  load() { try { this.cfg = JSON.parse(localStorage.getItem(CLOUD_KEY)) || {}; } catch { this.cfg = {}; } },
+  persist() { try { localStorage.setItem(CLOUD_KEY, JSON.stringify(this.cfg)); } catch {} },
+  get configured() { return Boolean(this.cfg.url && this.cfg.key); },
+
+  set(status) {
+    this.status = status;
+    const el = $('#sync-badge');
+    el.hidden = status === 'off';
+    el.dataset.status = status;
+    $('span', el).textContent = SYNC_LABELS[status];
+    if (state.view === 'settings' && !modal.open && !document.activeElement?.closest('.view form')) render();
+  },
+
+  async init() {
+    this.load();
+    if (!this.configured) return this.set('off');
+    try {
+      const { createClient } = await import(SUPABASE_JS);
+      this.client = createClient(this.cfg.url, this.cfg.key, { auth: { persistSession: true, storageKey: 'lumid-hq-auth' } });
+      const { data } = await this.client.auth.getSession();
+      this.user = data.session?.user || null;
+      this.client.auth.onAuthStateChange((_event, session) => { this.user = session?.user || null; });
+      if (this.user) await this.pull(); else this.set('signed-out');
+    } catch { this.set(navigator.onLine ? 'error' : 'offline'); }
+  },
+
+  markDirty() {
+    if (!this.configured) return;
+    this.cfg.dirty = true;
+    this.cfg.localUpdatedAt = Date.now();
+    this.persist();
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.push(), 1500);
+  },
+
+  async pull() {
+    if (!this.user) return;
+    this.set('syncing');
+    const { data, error } = await this.client.from('hq_state').select('data, updated_at').eq('user_id', this.user.id).maybeSingle();
+    if (error) return this.set(navigator.onLine ? 'error' : 'offline');
+    if (!data) return this.push();
+    const remoteAt = Date.parse(data.updated_at);
+    const remoteNewer = remoteAt > (this.cfg.lastSynced || 0);
+    if (remoteNewer && (!this.cfg.dirty || remoteAt > (this.cfg.localUpdatedAt || 0))) {
+      db = normalizeDb(data.data);
+      saveLocal();
+      Object.assign(this.cfg, { lastSynced: remoteAt, dirty: false });
+      this.persist();
+      render();
+      return this.set('synced');
+    }
+    if (this.cfg.dirty) return this.push();
+    this.set('synced');
+  },
+
+  async push() {
+    if (!this.user) return;
+    this.set('syncing');
+    const at = this.cfg.localUpdatedAt || Date.now();
+    const { error } = await this.client.from('hq_state').upsert({ user_id: this.user.id, data: db, updated_at: new Date(at).toISOString() });
+    if (error) return this.set(navigator.onLine ? 'error' : 'offline');
+    Object.assign(this.cfg, { lastSynced: at, dirty: false });
+    this.persist();
+    this.set('synced');
+  },
+
+  async signIn(email, password, create) {
+    const auth = this.client.auth;
+    const { data, error } = create
+      ? await auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } })
+      : await auth.signInWithPassword({ email, password });
+    if (error) return toast(error.message);
+    if (!data.session) return toast('Check your email to confirm, then sign in');
+    this.user = data.session.user;
+    // Fresh sign-in: the cloud copy wins. Keep this device's data as a safety backup.
+    try { localStorage.setItem(STORE_KEY + '-presync', JSON.stringify(db)); } catch {}
+    Object.assign(this.cfg, { lastSynced: 0, dirty: false });
+    this.persist();
+    await this.pull();
+    render();
+    toast(`Signed in as ${this.user.email}`);
+  },
+
+  async signOut() {
+    await this.client?.auth.signOut();
+    this.user = null;
+    this.set(this.configured ? 'signed-out' : 'off');
+    render();
+  },
+
+  async connect(url, key) {
+    this.cfg = { url: url.trim().replace(/\/+$/, ''), key: key.trim() };
+    this.persist();
+    await this.init();
+    if (this.status === 'error') toast('Could not reach Supabase — check the URL and key');
+    render();
+  },
+
+  async disconnect() {
+    await this.signOut();
+    this.cfg = {};
+    this.client = null;
+    this.persist();
+    this.set('off');
+    render();
+  },
+};
+
+function cloudCard() {
+  if (!cloud.configured) {
+    return `<p class="small muted">Sync across phone & laptop with a free Supabase database. Setup takes ~5 minutes — see <code>SETUP.md</code> in the repo.</p>
+      <form data-form="cloud-config">
+        <div class="field"><label for="cloud-url">Supabase project URL</label><input type="text" id="cloud-url" name="url" placeholder="https://xxxx.supabase.co" required autocomplete="off" inputmode="url"></div>
+        <div class="field"><label for="cloud-key">Anon / publishable key</label><input type="text" id="cloud-key" name="key" placeholder="eyJhbGciOi… or sb_publishable_…" required autocomplete="off"></div>
+        <button class="btn" type="submit">Connect</button>
+      </form>`;
+  }
+  if (!cloud.user) {
+    return `<p class="small muted">Connected to <b>${esc(hostOf(cloud.cfg.url))}</b>. Sign in to start syncing.</p>
+      <form data-form="cloud-auth">
+        <div class="field"><label for="cloud-email">Email</label><input type="email" id="cloud-email" name="email" required autocomplete="email"></div>
+        <div class="field"><label for="cloud-pass">Password</label><input type="password" id="cloud-pass" name="password" required minlength="6" autocomplete="current-password"></div>
+        <div class="row">
+          <button class="btn" type="submit" name="mode" value="signin">Sign in</button>
+          <button class="btn ghost" type="submit" name="mode" value="signup">Create account</button>
+          <span class="spacer"></span>
+          <button class="btn sm ghost" type="button" data-action="cloud-disconnect">Disconnect</button>
+        </div>
+      </form>`;
+  }
+  const last = cloud.cfg.lastSynced ? new Date(cloud.cfg.lastSynced).toLocaleString() : 'never';
+  return `<p class="small muted">Signed in as <b>${esc(cloud.user.email)}</b><br>Status: ${SYNC_LABELS[cloud.status] || '—'} · last synced ${esc(last)}</p>
+    <div class="row">
+      <button class="btn" data-action="cloud-sync">Sync now</button>
+      <button class="btn ghost" data-action="cloud-signout">Sign out</button>
+      <button class="btn sm ghost" data-action="cloud-disconnect">Disconnect</button>
+    </div>`;
+}
+
+/* ---------- Share target (installed PWA on Android) ---------- */
+function handleShare() {
+  const params = new URLSearchParams(location.search);
+  const shared = [params.get('url'), params.get('text'), params.get('title')].filter(Boolean).join(' ');
+  const url = shared.match(URL_RE);
+  if (!url) return;
+  const title = (params.get('title') || '').trim();
+  addResource(url[0], URL_RE.test(title) ? '' : title);
+  state.view = 'resources';
+  history.replaceState(null, '', location.pathname + '#resources');
+  setTimeout(() => toast('Saved to Resources'), 300);
+}
+
+/* ---------- Boot ---------- */
+initTheme();
+hydrateIcons();
+const initial = location.hash.slice(1);
+if (VIEWS.some((v) => v.id === initial)) state.view = initial;
+handleShare();
+render();
+try { if (!localStorage.getItem(STORE_KEY)) saveLocal(); } catch {}
+cloud.init();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && cloud.user) cloud.pull(); });
+window.addEventListener('online', () => { if (cloud.user) cloud.pull(); });
+setInterval(() => { if (document.visibilityState === 'visible' && cloud.user && !cloud.cfg.dirty) cloud.pull(); }, 60000);
+
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
