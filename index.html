@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0d12">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Lumid HQ — the CEO command center for Lumid AI and Lumid Studio.">
+  <title>Lumid HQ</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="Main navigation">
+      <div class="brand">
+        <img src="icon.svg" alt="" width="32" height="32">
+        <div><strong>Lumid HQ</strong><small>CEO command center</small></div>
+      </div>
+      <nav id="side-nav"></nav>
+      <button class="btn ghost side-search" data-action="search">
+        <span data-icon="search"></span> Search <kbd>⌘K</kbd>
+      </button>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-row">
+          <h1 id="view-title">Today</h1>
+          <div class="topbar-actions">
+            <button class="icon-btn" data-action="search" aria-label="Search"><span data-icon="search"></span></button>
+            <button class="icon-btn" data-action="theme" aria-label="Toggle theme"><span data-icon="contrast"></span></button>
+          </div>
+        </div>
+        <div class="chips" id="venture-filter" role="tablist" aria-label="Filter by venture"></div>
+      </header>
+      <section id="view" class="view" tabindex="-1"></section>
+    </main>
+  </div>
+
+  <nav class="bottom-nav" id="bottom-nav" aria-label="Main navigation"></nav>
+  <button class="fab" data-action="fab" aria-label="Add new"><span data-icon="plus"></span></button>
+
+  <dialog id="modal" class="modal"></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

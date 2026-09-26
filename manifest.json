@@ -1,0 +1,13 @@
+{
+  "name": "Lumid HQ",
+  "short_name": "Lumid HQ",
+  "description": "CEO command center for Lumid AI and Lumid Studio.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b0d12",
+  "theme_color": "#0b0d12",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
