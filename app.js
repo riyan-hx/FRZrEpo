@@ -58,6 +58,11 @@ const ICONS = {
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   resources: '<rect x="2" y="4" width="20" height="16" rx="4"/><path d="m10 9 5 3-5 3z"/>',
   bell: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  sparkle: '<path d="M12 2.5c.7 5 2.5 6.8 7.5 7.5-5 .7-6.8 2.5-7.5 7.5-.7-5-2.5-6.8-7.5-7.5 5-.7 6.8-2.5 7.5-7.5z" fill="currentColor" stroke="none"/>',
+  coins: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>',
+  chevron: '<path d="m9 6 6 6-6 6"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>',
+  moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
   more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
@@ -79,11 +84,11 @@ const TILE_GRADIENTS = {
   notes: ['#ffcc00', '#ff9500'], schedule: ['#ff6b5a', '#ff2d55'], resources: ['#ff375f', '#bf5af2'],
   goals: ['#7d7aff', '#5e5ce6'], metrics: ['#64d2ff', '#0a84ff'], decisions: ['#da8fff', '#af52de'],
   people: ['#63e6e2', '#30b0c7'], settings: ['#aeaeb2', '#636366'], bolt: ['#ff9f0a', '#ff375f'],
-  bell: ['#ff9f0a', '#ff6b00'], pin: ['#ffd60a', '#ff9f0a'],
+  bell: ['#ff9f0a', '#ff6b00'], pin: ['#ffd60a', '#ff9f0a'], coins: ['#63e6e2', '#0fb3a3'],
 };
 const appIcon = (name, size = '', glyph = name) => {
-  const [a, b] = TILE_GRADIENTS[name] || TILE_GRADIENTS.today;
-  return `<span class="app-icon ${size}" style="--g:linear-gradient(160deg,${a},${b})">${icon(glyph)}</span>`;
+  const [, b] = TILE_GRADIENTS[name] || TILE_GRADIENTS.today;
+  return `<span class="app-icon ${size}" style="--ic:${b}">${icon(glyph)}</span>`;
 };
 const hydrateIcons = (root = document) => $$('[data-icon]', root).forEach((el) => { el.innerHTML = icon(el.dataset.icon); });
 
@@ -152,7 +157,7 @@ const store = {
 };
 
 let db = store.load();
-const state = { view: 'today', venture: 'All', calMonth: today().slice(0, 7), calDay: today(), calMode: 'month', notesQuery: '', tasksTab: 'open', resTab: 'watch', resQuery: '' };
+const state = { view: 'today', venture: 'All', calMonth: today().slice(0, 7), calDay: today(), calMode: 'month', metricRange: '6m', notesQuery: '', tasksTab: 'open', resTab: 'watch', resQuery: '' };
 
 const ventureColor = (v) => VENTURE_COLORS[Math.max(0, db.ventures.indexOf(v)) % VENTURE_COLORS.length];
 const ventureBadge = (v) => v ? `<span class="badge" style="--c:${ventureColor(v)}"><span class="dot"></span>${esc(v)}</span>` : '';
@@ -470,7 +475,9 @@ function renderNav() {
       ${v === 'All' ? '' : `<span class="dot" style="--c:${ventureColor(v)}"></span>`}${esc(v)}
     </button>`).join('');
   $('#venture-filter').hidden = state.view === 'settings';
-  $('#view-title').textContent = VIEWS.find((v) => v.id === state.view).label;
+  $('#view-title').innerHTML = state.view === 'today'
+    ? `<span class="brand-mark" aria-hidden="true">${icon('sparkle')}</span>Lumid`
+    : esc(VIEWS.find((v) => v.id === state.view).label);
   $('.fab').hidden = state.view === 'settings';
 }
 
@@ -509,19 +516,31 @@ function viewToday() {
   const dayPlan = db.plans[t];
   const goals = byVenture(db.goals);
   const goalAvg = goals.length ? Math.round(goals.reduce((s, g) => s + goalProgress(g), 0) / goals.length) : 0;
+  const todayMetrics = byVenture(db.metrics).slice(0, 3);
 
   return `
     <div class="hero">
+      <svg class="hero-deco" viewBox="0 0 300 140" preserveAspectRatio="none" aria-hidden="true">
+        <defs><linearGradient id="hero-deco-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--accent)"/><stop offset="1" style="stop-color:#8ab4ff"/></linearGradient></defs>
+        <circle cx="215" cy="92" r="58" fill="url(#hero-deco-g)" opacity=".28"/>
+        <path d="M40 140C90 96 150 92 196 112c34-26 82-30 104-8V140Z" fill="url(#hero-deco-g)" opacity=".22"/>
+        <path d="M120 140c40-24 96-30 180-6V140Z" fill="url(#hero-deco-g)" opacity=".18"/>
+      </svg>
+      <span class="hero-badge" aria-hidden="true">${icon(h >= 6 && h < 18 ? 'sun' : 'moon')}</span>
       <h2>${greet}</h2>
-      <p>${fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' })} · ${dueToday.length} due today · ${events.length} on the calendar</p>
+      <p class="hero-date">${fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+      <p class="hero-meta">${dueToday.length} due today · ${events.length} on the calendar</p>
       ${captureBox()}
     </div>
 
     <div class="grid tiles section">
-      ${statTile('Open tasks', tasks.length, overdue.length ? `<span class="delta down">${overdue.length} overdue</span>` : '<span class="muted">on track</span>', 'tasks')}
-      ${statTile('Active ideas', ideas.filter((i) => !['shipped', 'parked'].includes(i.stage)).length, `<span class="muted">${ideas.filter((i) => i.stage === 'building').length} building</span>`, 'ideas')}
-      ${statTile('Goal progress', goalAvg + '%', `<span class="muted">${goals.length} objectives</span>`, 'goals')}
-      ${byVenture(db.metrics).slice(0, 3).map(metricTile).join('')}
+      ${statTile('Open tasks', tasks.length, overdue.length ? `<span class="delta down">${overdue.length} overdue</span>` : '<span class="muted">on track</span>', 'tasks', 'tasks',
+        miniBars(dailyCounts(byVenture(db.tasks).filter((x) => x.done && x.doneAt).map((x) => toISO(new Date(x.doneAt)))), 'var(--accent)'))}
+      ${statTile('Active ideas', ideas.filter((i) => !['shipped', 'parked'].includes(i.stage)).length, `<span class="muted">${ideas.filter((i) => i.stage === 'building').length} building</span>`, 'ideas', 'ideas',
+        miniBars(dailyCounts(ideas.filter((i) => i.createdAt).map((i) => toISO(new Date(i.createdAt)))), '#2fbf8f'))}
+      ${statTile('Goal progress', goalAvg + '%', `<span class="muted">${goals.length} objectives</span>`, 'goals', 'goals',
+        `<div class="tile-progress" role="progressbar" aria-valuenow="${goalAvg}" aria-valuemin="0" aria-valuemax="100"><span style="width:${goalAvg}%"></span></div>`)}
+      ${todayMetrics.map((m, i) => metricTile(m, (3 + todayMetrics.length) % 2 === 1 && i === todayMetrics.length - 1)).join('')}
     </div>
 
     <div class="grid two">
@@ -532,7 +551,7 @@ function viewToday() {
       <div class="card">
         <div class="card-head">${appIcon('schedule')}<h3>Today's schedule</h3><button class="link" data-nav="schedule">Calendar →</button></div>
         ${events.length ? `<div class="list">${events.map(eventRow).join('')}</div>` : empty('No meetings today', 'Block time for deep work.')}
-        ${upcoming.length ? `<p class="section-title" style="margin-top:14px">Next 7 days</p><div class="list">${upcoming.map((e) => eventRow(e, true)).join('')}</div>` : ''}
+        ${upcoming.length ? `<p class="section-title" style="margin-top:12px">Next 7 days</p><div class="list">${upcoming.map((e) => eventRow(e, true)).join('')}</div>` : ''}
       </div>
       ${followUps.length || reviews.length ? `
       <div class="card">
@@ -617,8 +636,31 @@ function syncCapturePills(input) {
   input.placeholder = (CAPTURE_TYPES.find((c) => c.k === kind) || CAPTURE_TYPES[0]).ph;
 }
 
-function statTile(label, value, sub, nav) {
-  return `<div class="tile card click" data-nav="${nav}"><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${sub}</div></div>`;
+function tileHead(label, glyph, extra = '') {
+  const [, color] = TILE_GRADIENTS[glyph] || TILE_GRADIENTS.today;
+  return `<div class="tile-head"><span class="tile-icon" style="--ic:${color}">${icon(glyph)}</span><span class="label">${label}</span>${extra}<span class="tile-chev">${icon('chevron')}</span></div>`;
+}
+
+function statTile(label, value, sub, nav, glyph, viz = '') {
+  return `<div class="tile card click" data-nav="${nav}">
+    ${tileHead(label, glyph)}
+    <div class="tile-body"><div><div class="value">${value}</div><div class="delta">${sub}</div></div>${viz}</div>
+  </div>`;
+}
+
+// Counts per day for the last `days` days (oldest first).
+function dailyCounts(isoDates, days = 5) {
+  const t = today();
+  return Array.from({ length: days }, (_, i) => isoDates.filter((d) => d === addDays(t, i - days + 1)).length);
+}
+
+function miniBars(counts, color) {
+  const max = Math.max(...counts, 1);
+  const empty = counts.every((n) => !n);
+  return `<div class="mini-bars" style="--bc:${color}" aria-hidden="true">${counts.map((n, i) => {
+    const h = empty ? 25 + i * 18 : Math.max(12, Math.round((n / max) * 100));
+    return `<i style="height:${h}%;opacity:${(0.3 + i * 0.175).toFixed(2)}"></i>`;
+  }).join('')}</div>`;
 }
 
 /* ---------- View: Ideas ---------- */
@@ -635,13 +677,13 @@ function viewIdeas() {
         <div class="card click" draggable="true" data-drag="${i.id}" data-edit="ideas:${i.id}">
           <div class="idea-title">${esc(i.title)}</div>
           ${i.body ? `<div class="clip muted small">${esc(i.body)}</div>` : ''}
-          <div class="row" style="margin-top:10px">
+          <div class="row" style="margin-top:8px">
             ${ventureBadge(i.venture)}
             <span class="small muted">Impact ${i.impact} · Effort ${i.effort}</span>
             <span class="spacer"></span><span class="score" title="Score">★ ${ideaScore(i).toFixed(0)}</span>
           </div>
-          <div class="row" style="margin-top:10px">
-            <select class="stage-select" data-stage="${i.id}" aria-label="Move to stage" style="padding:6px 10px;font-size:13px;flex:1">
+          <div class="row" style="margin-top:8px">
+            <select class="stage-select" data-stage="${i.id}" aria-label="Move to stage" style="padding:4px 8px;font-size:13px;flex:1">
               ${STAGES.map((x) => `<option value="${x.id}" ${x.id === i.stage ? 'selected' : ''}>${x.label}</option>`).join('')}
             </select>
             ${i.stage !== 'shipped' ? `<button class="btn sm" data-action="idea-to-task" data-id="${i.id}">Implement</button>` : ''}
@@ -701,7 +743,7 @@ function viewTasks() {
   ].filter(([, l]) => l.length);
   return `<div class="toolbar">${seg}</div>
     ${groups.length ? groups.map(([name, list]) => `
-      <div class="section"><p class="section-title">${name} · ${list.length}</p><div class="card" style="padding:4px 14px"><div class="list">${list.map(taskRow).join('')}</div></div></div>`).join('')
+      <div class="section"><p class="section-title">${name} · ${list.length}</p><div class="card" style="padding:4px 12px"><div class="list">${list.map(taskRow).join('')}</div></div></div>`).join('')
       : empty('Inbox zero', 'No open tasks. Tap + to add one.')}`;
 }
 
@@ -846,7 +888,7 @@ function scheduleDeadlines() {
   ].map(([name, fn]) => [name, items.filter((i) => fn(i.date))]).filter(([, l]) => l.length);
   if (!groups.length) return empty('No deadlines', 'Add launches, investor updates, filing dates… Tap “+ Deadline”.');
   return groups.map(([name, list]) => `<div class="section"><p class="section-title">${name} · ${list.length}</p>
-    <div class="card" style="padding:4px 14px"><div class="list">${list.map((i) => i.html).join('')}</div></div></div>`).join('');
+    <div class="card" style="padding:4px 12px"><div class="list">${list.map((i) => i.html).join('')}</div></div></div>`).join('');
 }
 
 function deadlineRow(date, title, meta, edit) {
@@ -891,7 +933,7 @@ function viewGoals() {
       <div class="row" style="flex-wrap:nowrap;align-items:flex-start">
         <div class="item-main" data-edit="goals:${g.id}">
           <h3 style="font-size:16px">${esc(g.title)}</h3>
-          <div class="row" style="margin-top:6px">${ventureBadge(g.venture)}<span class="small muted">${esc(g.quarter || '')}</span></div>
+          <div class="row" style="margin-top:4px">${ventureBadge(g.venture)}<span class="small muted">${esc(g.quarter || '')}</span></div>
         </div>
         <div class="ring" style="--p:${p}"><span>${p}%</span></div>
       </div>
@@ -905,15 +947,43 @@ function viewGoals() {
 }
 
 /* ---------- View: Metrics ---------- */
-function sparkline(values) {
+const SPARK_TONES = { accent: ['var(--accent)', '#5aa9ff'], green: ['#2fbf8f', '#2fbf8f'] };
+
+// Smooth curve through points (Catmull-Rom → cubic Bézier).
+function smoothPath(p) {
+  let d = `M${p[0][0]},${p[0][1]}`;
+  for (let i = 0; i < p.length - 1; i++) {
+    const [p0, p1, p2, p3] = [p[i - 1] || p[i], p[i], p[i + 1], p[i + 2] || p[i + 1]];
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += ` C${c1.map((n) => n.toFixed(2))} ${c2.map((n) => n.toFixed(2))} ${p2.map((n) => n.toFixed(2))}`;
+  }
+  return d;
+}
+
+function sparkline(values, { tone = 'accent', grid = false } = {}) {
   if (values.length < 2) return '';
   const gid = 'sg-' + uid();
+  const [c1, c2] = SPARK_TONES[tone] || SPARK_TONES.accent;
   const min = Math.min(...values), max = Math.max(...values), range = max - min || 1;
-  const pts = values.map((v, i) => `${(i / (values.length - 1)) * 100},${34 - ((v - min) / range) * 30}`).join(' ');
+  const pts = values.map((v, i) => [(i / (values.length - 1)) * 100, 34 - ((v - min) / range) * 30]);
+  const line = smoothPath(pts);
+  const gridLines = grid ? [20, 40, 60, 80].map((x) => `<line x1="${x}" y1="0" x2="${x}" y2="36" class="spark-grid" vector-effect="non-scaling-stroke"/>`).join('') : '';
   return `<svg class="spark" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true">
-    <defs><linearGradient id="${gid}" x1="0" x2="1"><stop offset="0" stop-color="#0a84ff"/><stop offset=".5" stop-color="#5e5ce6"/><stop offset="1" stop-color="#bf5af2"/></linearGradient></defs>
-    <polyline points="${pts}" fill="none" stroke="url(#${gid})" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+    <defs><linearGradient id="${gid}" x1="0" x2="1"><stop offset="0" style="stop-color:${c1}"/><stop offset="1" style="stop-color:${c2}"/></linearGradient>
+    <linearGradient id="${gid}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:${c2};stop-opacity:.24"/><stop offset="1" style="stop-color:${c2};stop-opacity:0"/></linearGradient></defs>
+    ${gridLines}
+    <path d="${line} L100,36 L0,36 Z" fill="url(#${gid}a)"/>
+    <path d="${line}" fill="none" stroke="url(#${gid})" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 }
+
+const METRIC_RANGES = [['30d', 'Last 30 days', 30], ['6m', 'Last 6 months', 183], ['all', 'All time', Infinity]];
+const inRange = (entries) => {
+  const days = (METRIC_RANGES.find(([k]) => k === state.metricRange) || METRIC_RANGES[1])[2];
+  if (days === Infinity) return entries;
+  const from = addDays(today(), -days);
+  return entries.filter((e) => e.date >= from);
+};
 const metricValue = (m, v) => {
   const u = (m.unit || '').trim();
   if (['$', '€', '£', '₹'].includes(u)) return u + fmtNum(v);
@@ -930,14 +1000,21 @@ function metricDelta(m) {
 }
 const sortedEntries = (m) => [...(m.entries || [])].sort((a, b) => a.date.localeCompare(b.date));
 
-function metricTile(m) {
+function metricTile(m, wide = false) {
   const e = sortedEntries(m);
   const last = e.at(-1);
-  return `<div class="tile card click" data-log="${m.id}">
-    <div class="label"><span class="dot" style="--c:${ventureColor(m.venture)}"></span>${esc(m.name)}</div>
-    <div class="value">${last ? metricValue(m, last.value) : '—'}</div>
-    <div class="delta">${metricDelta(m) || '<span class="muted">log a value</span>'}</div>
-    ${sparkline(e.map((x) => x.value))}
+  const money = ['$', '€', '£', '₹'].includes((m.unit || '').trim());
+  const glyph = money ? 'coins' : /user|people|customer|member/i.test(m.name) ? 'people' : 'metrics';
+  const range = wide
+    ? `<select class="range-select" data-metric-range aria-label="Chart range">${METRIC_RANGES.map(([k, l]) => `<option value="${k}" ${k === state.metricRange ? 'selected' : ''}>${l}</option>`).join('')}</select>`
+    : '';
+  const series = (wide ? inRange(e) : e).map((x) => x.value);
+  return `<div class="tile card click metric-tile ${wide ? 'wide' : ''}" data-log="${m.id}">
+    ${tileHead(esc(m.name), glyph, range)}
+    <div class="tile-body">
+      <div><div class="value">${last ? metricValue(m, last.value) : '—'}</div><div class="delta">${metricDelta(m) || '<span class="muted">log a value</span>'}</div></div>
+      ${sparkline(series, { tone: money ? 'green' : 'accent', grid: wide })}
+    </div>
   </div>`;
 }
 
@@ -954,7 +1031,7 @@ function viewMetrics() {
       <div class="row" style="align-items:baseline"><span class="tile value" style="border:0;padding:0;background:none">${last ? metricValue(m, last.value) : '—'}</span>${metricDelta(m)}</div>
       ${sparkline(e.map((x) => x.value))}
       ${pct !== null ? `<div class="kr"><div class="kr-row"><span class="muted">Target ${metricValue(m, m.target)}</span><b>${pct}%</b></div><div class="progress"><span style="width:${pct}%"></span></div></div>` : ''}
-      <div class="row" style="margin-top:14px">
+      <div class="row" style="margin-top:12px">
         <span class="small muted">${e.length} entries${last ? ' · last ' + relDate(last.date).toLowerCase() : ''}</span><span class="spacer"></span>
         <button class="btn sm" data-log="${m.id}">${icon('plus')} Log value</button>
       </div>
@@ -1085,9 +1162,9 @@ function resourceCard(r) {
     <div class="item-main" data-edit="resources:${r.id}">
       <div class="idea-title clip2">${esc(r.title)}</div>
       <div class="small muted">${esc(r.author || hostOf(r.url))}</div>
-      ${r.notes ? `<div class="clip small muted" style="margin-top:6px">${esc(r.notes)}</div>` : ''}
+      ${r.notes ? `<div class="clip small muted" style="margin-top:4px">${esc(r.notes)}</div>` : ''}
     </div>
-    <div class="row" style="margin-top:10px">
+    <div class="row" style="margin-top:8px">
       ${ventureBadge(r.venture)}<span class="spacer"></span>
       <button class="btn sm ${done ? 'ghost' : ''}" data-res-done="${r.id}">${done ? 'Watched ✓' : 'Mark watched'}</button>
     </div>
@@ -1405,6 +1482,9 @@ document.addEventListener('change', (e) => {
     store.save();
     if (t.done) toast('Task completed ✓', 'Undo', () => { t.done = false; t.doneAt = null; store.save(); render(); });
     setTimeout(render, t.done ? 350 : 0);
+  } else if (el.matches('[data-metric-range]')) {
+    state.metricRange = el.value;
+    render();
   } else if (el.dataset.stage) {
     const i = find('ideas', el.dataset.stage);
     if (i) { i.stage = el.value; store.save(); render(); }
