@@ -61,6 +61,8 @@ const ICONS = {
   sparkle: '<path d="M12 2.5c.7 5 2.5 6.8 7.5 7.5-5 .7-6.8 2.5-7.5 7.5-.7-5-2.5-6.8-7.5-7.5 5-.7 6.8-2.5 7.5-7.5z" fill="currentColor" stroke="none"/>',
   coins: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>',
   chevron: '<path d="m9 6 6 6-6 6"/>',
+  mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>',
   moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
   more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
@@ -84,7 +86,7 @@ const TILE_GRADIENTS = {
   notes: ['#ffcc00', '#ff9500'], schedule: ['#ff6b5a', '#ff2d55'], resources: ['#ff375f', '#bf5af2'],
   goals: ['#7d7aff', '#5e5ce6'], metrics: ['#64d2ff', '#0a84ff'], decisions: ['#da8fff', '#af52de'],
   people: ['#63e6e2', '#30b0c7'], settings: ['#aeaeb2', '#636366'], bolt: ['#ff9f0a', '#ff375f'],
-  bell: ['#ff9f0a', '#ff6b00'], pin: ['#ffd60a', '#ff9f0a'], coins: ['#63e6e2', '#0fb3a3'],
+  bell: ['#ff9f0a', '#ff6b00'], sparkle: ['#a99bff', '#6a58f5'], pin: ['#ffd60a', '#ff9f0a'], coins: ['#63e6e2', '#0fb3a3'],
 };
 const appIcon = (name, size = '', glyph = name) => {
   const [, b] = TILE_GRADIENTS[name] || TILE_GRADIENTS.today;
@@ -597,6 +599,7 @@ function captureBox() {
   const extras = [...tags, ['today', 'Today', ''], ['tomorrow', 'Tomorrow', ''], ['at 10am', '10am', ''], ['!p1', 'Urgent', 'data-tone="danger"']];
   return `<form class="capture capture-box" data-form="capture">
       <input type="text" name="q" placeholder="${CAPTURE_TYPES[0].ph}" autocomplete="off" enterkeyhint="done" aria-label="Quick capture">
+      <button class="icon-btn bare mic-btn" type="button" data-action="voice" aria-label="Speak to capture" aria-pressed="false">${icon('mic')}</button>
       <button class="btn" type="submit" aria-label="Capture">${icon('bolt')}</button>
     </form>
     <div class="pills" role="group" aria-label="What are you capturing?">
@@ -1203,6 +1206,10 @@ function viewSettings() {
       </form>
     </div>
     <div class="card">
+      <div class="card-head">${appIcon('sparkle', '', 'sparkle')}<h3>AI assistant</h3></div>
+      ${aiCard()}
+    </div>
+    <div class="card">
       <div class="card-head"><h3>☁️ Cloud sync</h3></div>
       ${cloudCard()}
     </div>
@@ -1430,6 +1437,15 @@ const ACTIONS = {
     db = emptyDb(); store.save(); render(); toast('All data erased');
   },
   'cloud-sync': () => cloud.pull(),
+  voice: toggleVoice,
+  'ai-test': async (el) => {
+    el.disabled = true;
+    try {
+      const { items } = await aiOrganize({ text: 'Call Arjun tomorrow at 3pm about the Lumid AI launch, and idea: a voice mode for Lumid Studio' });
+      toast(`AI works ✓ — found ${items.length} items`);
+    } catch (err) { toast(`AI: ${err.message}`); }
+    el.disabled = false;
+  },
   'cloud-signout': () => cloud.signOut(),
   'cloud-disconnect': () => { if (confirm('Disconnect cloud sync on this device? Your data stays here and in the cloud.')) cloud.disconnect(); },
   demo: () => {
@@ -1482,6 +1498,10 @@ document.addEventListener('change', (e) => {
     store.save();
     if (t.done) toast('Task completed ✓', 'Undo', () => { t.done = false; t.doneAt = null; store.save(); render(); });
     setTimeout(render, t.done ? 350 : 0);
+  } else if (el.id === 'ai-provider') {
+    const p = AI_PROVIDERS[el.value];
+    $('#ai-model').placeholder = p.model;
+    $('label[for="ai-key"] a').href = p.keyUrl;
   } else if (el.matches('[data-metric-range]')) {
     state.metricRange = el.value;
     render();
@@ -1529,7 +1549,10 @@ document.addEventListener('submit', (e) => {
   switch (form.dataset.form) {
     case 'capture': {
       const input = form.elements.q;
-      if (capture(input.value) !== 'confirm') input.value = '';
+      const text = input.value.trim();
+      if (!text) break;
+      if (ai.ready && ai.cfg.auto && !CAP_PREFIX_RE.test(text) && !URL_RE.test(text)) { aiCapture({ text }); break; }
+      if (capture(text) !== 'confirm') input.value = '';
       break;
     }
     case 'editor': saveEditor(form); break;
@@ -1549,6 +1572,15 @@ document.addEventListener('submit', (e) => {
       const fd = new FormData(form);
       (m.entries ||= []).push({ date: fd.get('date'), value: Number(fd.get('value')) });
       store.save(); closeModal(); render(); toast(`${m.name} logged`);
+      break;
+    }
+    case 'ai-review': saveAiReview(form); break;
+    case 'ai-config': {
+      const fd = new FormData(form);
+      Object.assign(ai.cfg, { provider: fd.get('provider'), model: String(fd.get('model')).trim(), key: String(fd.get('key')).trim(), auto: fd.get('auto') === 'on' });
+      ai.save();
+      render();
+      toast(ai.ready ? 'AI assistant saved' : 'AI turned off (no key)');
       break;
     }
     case 'cloud-config':
@@ -1759,6 +1791,319 @@ function cloudCard() {
       <button class="btn ghost" data-action="cloud-signout">Sign out</button>
       <button class="btn sm ghost" data-action="cloud-disconnect">Disconnect</button>
     </div>`;
+}
+
+/* ---------- AI assistant (free-tier LLMs, called straight from the browser) ---------- */
+// The key is stored only on this device (never synced) and sent only to the chosen provider.
+const AI_KEY = 'lumid-hq-ai';
+const AI_PROVIDERS = {
+  gemini: { label: 'Google Gemini', model: 'gemini-2.5-flash', keyUrl: 'https://aistudio.google.com/apikey', audio: true },
+  groq: { label: 'Groq', model: 'llama-3.3-70b-versatile', keyUrl: 'https://console.groq.com/keys', audio: true },
+  openrouter: { label: 'OpenRouter (free models)', model: 'meta-llama/llama-3.3-70b-instruct:free', keyUrl: 'https://openrouter.ai/keys', audio: false },
+};
+const AI_KINDS = { idea: 'ideas', task: 'tasks', event: 'events', note: 'notes', decision: 'decisions', link: 'resources' };
+
+const ai = {
+  cfg: { provider: 'gemini', key: '', model: '', auto: true },
+  load() { try { Object.assign(this.cfg, JSON.parse(localStorage.getItem(AI_KEY)) || {}); } catch {} },
+  save() { try { localStorage.setItem(AI_KEY, JSON.stringify(this.cfg)); } catch {} },
+  get ready() { return Boolean(this.cfg.key && AI_PROVIDERS[this.cfg.provider]); },
+  get provider() { return AI_PROVIDERS[this.cfg.provider] || AI_PROVIDERS.gemini; },
+  get model() { return this.cfg.model || this.provider.model; },
+};
+ai.load();
+
+function aiPrompt(source) {
+  const now = new Date();
+  const fallbackVenture = state.venture !== 'All' ? state.venture : 'General';
+  return `You organise a CEO's quick notes (typed or spoken) into items for their dashboard.
+Today is ${today()} (${now.toLocaleDateString('en-US', { weekday: 'long' })}), local time ${hhmm(now.getHours(), now.getMinutes())}, timezone ${Intl.DateTimeFormat().resolvedOptions().timeZone}.
+Ventures: ${db.ventures.join(', ')}. Use "${fallbackVenture}" when none is mentioned.
+
+Return only JSON in this shape:
+{"transcript":"what was said, cleaned up","items":[{"kind":"idea|task|event|note|decision|link","title":"short title","body":"extra details or empty","date":"YYYY-MM-DD or empty","start":"HH:MM (24h) or empty","end":"HH:MM or empty","venture":"one of the ventures","priority":"p1|p2|p3","url":"only for links"}]}
+
+Guidelines:
+- Split separate things into separate items.
+- Something to do ("call", "send", "remind me", "need to") is a task; a meeting or appointment at a time is an event; a product or business thought is an idea; a choice already made is a decision.
+- Resolve relative dates and times ("tomorrow 3pm", "next Friday") to absolute values. Leave date/start empty when not stated; an event with a start but no end lasts one hour.
+- Fix obvious speech-to-text mistakes and keep titles concise, in the speaker's words.
+- "urgent" or "asap" means p1; otherwise p2.
+- If nothing is actionable, return a single note.
+
+${source}`;
+}
+
+function extractJson(text) {
+  const s = String(text || '');
+  const start = s.indexOf('{'), end = s.lastIndexOf('}');
+  if (start < 0 || end <= start) throw new Error('The AI did not return JSON');
+  return JSON.parse(s.slice(start, end + 1));
+}
+
+async function aiFetchJson(url, options) {
+  const res = await fetch(url, options);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error?.message || data.error || `AI request failed (${res.status})`);
+  return data;
+}
+
+const blobToBase64 = (blob) => new Promise((resolve, reject) => {
+  const r = new FileReader();
+  r.onload = () => resolve(String(r.result).split(',')[1]);
+  r.onerror = reject;
+  r.readAsDataURL(blob);
+});
+
+async function aiGenerate(prompt, audio) {
+  const { provider, key } = ai.cfg;
+  if (provider === 'gemini') {
+    const parts = [{ text: prompt }];
+    if (audio) parts.unshift({ inline_data: { mime_type: audio.type.split(';')[0] || 'audio/webm', data: await blobToBase64(audio) } });
+    const data = await aiFetchJson(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(ai.model)}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify({ contents: [{ parts }], generationConfig: { temperature: 0.2, responseMimeType: 'application/json' } }),
+    });
+    return data.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+  }
+  const base = provider === 'groq' ? 'https://api.groq.com/openai/v1' : 'https://openrouter.ai/api/v1';
+  const body = { model: ai.model, temperature: 0.2, messages: [{ role: 'user', content: prompt }] };
+  if (provider === 'groq') body.response_format = { type: 'json_object' };
+  const data = await aiFetchJson(`${base}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify(body),
+  });
+  return data.choices?.[0]?.message?.content || '';
+}
+
+async function groqTranscribe(audio) {
+  const form = new FormData();
+  form.append('file', audio, `voice.${(audio.type.split('/')[1] || 'webm').split(';')[0]}`);
+  form.append('model', 'whisper-large-v3-turbo');
+  const data = await aiFetchJson('https://api.groq.com/openai/v1/audio/transcriptions', {
+    method: 'POST', headers: { Authorization: `Bearer ${ai.cfg.key}` }, body: form,
+  });
+  return data.text || '';
+}
+
+function normalizeAiItem(raw) {
+  const kind = AI_KINDS[raw.kind] ? raw.kind : 'note';
+  const pick = (v, re) => (typeof v === 'string' && re.test(v) ? v : '');
+  const venture = db.ventures.find((v) => v.toLowerCase() === String(raw.venture || '').toLowerCase()) || (state.venture !== 'All' ? state.venture : 'General');
+  const start = pick(raw.start, /^\d{2}:\d{2}$/);
+  return {
+    kind,
+    title: String(raw.title || raw.body || '').trim().slice(0, 200),
+    body: String(raw.body || '').trim(),
+    date: pick(raw.date, /^\d{4}-\d{2}-\d{2}$/),
+    start,
+    end: pick(raw.end, /^\d{2}:\d{2}$/) || (start ? addMinutes(start, 60) : ''),
+    venture,
+    priority: ['p1', 'p2', 'p3'].includes(raw.priority) ? raw.priority : 'p2',
+    url: kind === 'link' ? String(raw.url || '').trim() : '',
+  };
+}
+
+async function aiOrganize({ text = '', audio = null } = {}) {
+  let source = `Note:\n"""${text}"""`;
+  if (audio && ai.cfg.provider === 'groq') {
+    text = await groqTranscribe(audio);
+    source = `Note:\n"""${text}"""`;
+    audio = null;
+  } else if (audio) {
+    source = 'Note: the attached voice recording.';
+  }
+  const parsed = extractJson(await aiGenerate(aiPrompt(source), audio));
+  const items = (Array.isArray(parsed.items) ? parsed.items : []).map(normalizeAiItem).filter((i) => i.title);
+  return { items, transcript: parsed.transcript || text };
+}
+
+let aiBusy = false;
+async function aiCapture(input) {
+  if (aiBusy) return;
+  aiBusy = true;
+  setCaptureBusy(true);
+  try {
+    const { items, transcript } = await aiOrganize(input);
+    if (!items.length) throw new Error('Nothing to capture was found');
+    openAiReview(items, transcript);
+  } catch (err) {
+    if (!input.text) return toast(`AI: ${err.message}`);
+    capture(input.text); // fall back to the built-in parser
+    toast(`AI unavailable (${err.message}) — saved without AI`);
+  } finally {
+    aiBusy = false;
+    setCaptureBusy(false);
+  }
+}
+
+function setCaptureBusy(busy) {
+  const form = $('[data-form="capture"]');
+  if (!form) return;
+  form.classList.toggle('busy', busy);
+  $('button[type=submit]', form).innerHTML = busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('bolt');
+}
+
+let aiReviewItems = [];
+function openAiReview(items, transcript) {
+  aiReviewItems = items;
+  const kindOptions = (k) => Object.keys(AI_KINDS).map((x) => `<option value="${x}" ${x === k ? 'selected' : ''}>${x[0].toUpperCase() + x.slice(1)}</option>`).join('');
+  const ventureOptions = (v) => db.ventures.map((x) => `<option ${x === v ? 'selected' : ''}>${esc(x)}</option>`).join('');
+  openModal(`${icon('sparkle')} Review ${items.length} item${items.length > 1 ? 's' : ''}`, `
+    <form id="ai-review" data-form="ai-review">
+      ${transcript ? `<p class="confirm-note">“${esc(transcript)}”</p>` : ''}
+      ${items.map((it, i) => `
+        <div class="ai-item" data-i="${i}">
+          <div class="row">
+            <input type="checkbox" class="check" name="on-${i}" checked aria-label="Include item">
+            <select name="kind-${i}" class="ai-kind" aria-label="Type">${kindOptions(it.kind)}</select>
+            <select name="venture-${i}" class="ai-venture" aria-label="Venture">${ventureOptions(it.venture)}</select>
+          </div>
+          <input type="text" name="title-${i}" value="${esc(it.title)}" aria-label="Title">
+          <div class="field-row ai-when" data-kind="${it.kind}">
+            <input type="date" name="date-${i}" value="${it.date}" aria-label="Date" class="${it.kind === 'event' && !it.date ? 'missing' : ''}">
+            <input type="time" name="start-${i}" value="${it.start}" aria-label="Start time" class="${it.kind === 'event' && !it.start ? 'missing' : ''}">
+          </div>
+        </div>`).join('')}
+    </form>`,
+    `<button class="btn ghost" type="button" data-action="close">Cancel</button><span class="spacer"></span><button class="btn" type="submit" form="ai-review">Add selected</button>`);
+}
+
+function saveAiReview(form) {
+  const fd = new FormData(form);
+  const chosen = aiReviewItems.map((it, i) => fd.get(`on-${i}`) && {
+    ...it,
+    kind: fd.get(`kind-${i}`), venture: fd.get(`venture-${i}`), title: String(fd.get(`title-${i}`)).trim(),
+    date: fd.get(`date-${i}`), start: fd.get(`start-${i}`),
+  }).filter((it) => it && it.title);
+  const missing = chosen.find((it) => it.kind === 'event' && !it.date);
+  if (missing) return toast(`Add a date for “${missing.title}”`);
+  for (const it of chosen) {
+    const base = { id: uid(), venture: it.venture, createdAt: Date.now() };
+    const end = it.start ? (it.end && it.end > it.start ? it.end : addMinutes(it.start, 60)) : '';
+    if (it.kind === 'link') {
+      const url = it.url || (it.title.match(URL_RE) || [])[0];
+      if (url) addResource(url, it.url ? it.title : '', { venture: it.venture, notes: it.body });
+      else upsert('notes', { ...base, title: it.title, body: it.body, pinned: false, updatedAt: Date.now() });
+      continue;
+    }
+    const item = {
+      idea: { ...base, title: it.title, body: it.body, stage: 'spark', impact: 3, effort: 3 },
+      task: { ...base, title: it.title, due: it.date, priority: it.priority, done: false, notes: it.body },
+      event: { ...base, title: it.title, date: it.date, start: it.start, end, type: 'meeting', notes: it.body },
+      note: { ...base, title: it.title, body: it.body, pinned: false, updatedAt: Date.now() },
+      decision: { ...base, title: it.title, date: it.date || today(), context: it.body, rationale: '' },
+    }[it.kind];
+    upsert(AI_KINDS[it.kind], item);
+  }
+  closeModal();
+  render();
+  toast(chosen.length ? `Added ${chosen.length} item${chosen.length > 1 ? 's' : ''}` : 'Nothing selected');
+}
+
+/* ---------- Voice capture ---------- */
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+const voice = { rec: null, recorder: null, chunks: [], active: false };
+
+function setMicState(on) {
+  voice.active = on;
+  const btn = $('[data-action="voice"]');
+  if (btn) { btn.classList.toggle('listening', on); btn.setAttribute('aria-pressed', on); btn.innerHTML = icon(on ? 'stop' : 'mic'); }
+  const input = $('[data-form="capture"] input');
+  if (input && on) input.placeholder = 'Listening… tap stop when done';
+  else if (input) syncCapturePills(input);
+}
+
+function finishVoiceText(text) {
+  const clean = text.trim();
+  if (!clean) return toast('Didn’t catch that — try again');
+  const input = $('[data-form="capture"] input');
+  if (input) input.value = clean;
+  if (ai.ready) aiCapture({ text: clean });
+  else if (capture(clean) !== 'confirm' && input) input.value = '';
+}
+
+function startSpeechRecognition() {
+  const rec = new SpeechRec();
+  rec.lang = navigator.language || 'en-US';
+  rec.interimResults = true;
+  rec.continuous = true;
+  let finalText = '';
+  rec.onresult = (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) finalText += e.results[i][0].transcript + ' ';
+      else interim += e.results[i][0].transcript;
+    }
+    const input = $('[data-form="capture"] input');
+    if (input) input.value = (finalText + interim).trim();
+  };
+  rec.onerror = (e) => { if (e.error !== 'aborted' && e.error !== 'no-speech') toast(`Voice: ${e.error}`); };
+  rec.onend = () => {
+    const wasActive = voice.active;
+    setMicState(false);
+    voice.rec = null;
+    if (wasActive || finalText) finishVoiceText(finalText || ($('[data-form="capture"] input')?.value || ''));
+  };
+  voice.rec = rec;
+  rec.start();
+  setMicState(true);
+}
+
+async function startRecording() {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const recorder = new MediaRecorder(stream);
+  voice.chunks = [];
+  recorder.ondataavailable = (e) => e.data.size && voice.chunks.push(e.data);
+  recorder.onstop = () => {
+    stream.getTracks().forEach((t) => t.stop());
+    setMicState(false);
+    const blob = new Blob(voice.chunks, { type: recorder.mimeType || 'audio/webm' });
+    if (blob.size) aiCapture({ audio: blob });
+  };
+  voice.recorder = recorder;
+  recorder.start();
+  setMicState(true);
+}
+
+async function toggleVoice() {
+  if (voice.active) {
+    voice.active = false;
+    if (voice.rec) voice.rec.stop();
+    if (voice.recorder && voice.recorder.state !== 'inactive') voice.recorder.stop();
+    return;
+  }
+  try {
+    if (SpeechRec) return startSpeechRecognition();
+    if (ai.ready && ai.provider.audio && window.MediaRecorder && navigator.mediaDevices?.getUserMedia) return await startRecording();
+    toast(ai.ready ? 'Voice isn’t supported in this browser — try Chrome or Safari' : 'Voice needs Chrome/Safari, or add a free AI key in Settings');
+  } catch (err) {
+    setMicState(false);
+    toast(err.name === 'NotAllowedError' ? 'Microphone permission was blocked' : `Voice: ${err.message}`);
+  }
+}
+
+function aiCard() {
+  const p = ai.provider;
+  return `<p class="small muted">Speak or type naturally — AI splits it into tasks, events, ideas and notes with dates and times. Uses a free-tier model with your own key, stored only on this device.</p>
+    <form data-form="ai-config">
+      <div class="field-row">
+        <div class="field"><label for="ai-provider">Provider</label>
+          <select id="ai-provider" name="provider">${Object.entries(AI_PROVIDERS).map(([k, v]) => `<option value="${k}" ${k === ai.cfg.provider ? 'selected' : ''}>${v.label}</option>`).join('')}</select></div>
+        <div class="field"><label for="ai-model">Model</label>
+          <input type="text" id="ai-model" name="model" value="${esc(ai.cfg.model)}" placeholder="${esc(p.model)}" autocomplete="off"></div>
+      </div>
+      <div class="field"><label for="ai-key">API key · <a href="${p.keyUrl}" target="_blank" rel="noopener noreferrer">get a free key</a></label>
+        <input type="password" id="ai-key" name="key" value="${esc(ai.cfg.key)}" placeholder="Paste your key" autocomplete="off"></div>
+      <label class="row small" style="margin-bottom:12px"><input type="checkbox" class="check" name="auto" ${ai.cfg.auto ? 'checked' : ''}> Organize typed notes with AI too</label>
+      <div class="row">
+        <button class="btn" type="submit">Save</button>
+        <button class="btn ghost" type="button" data-action="ai-test" ${ai.ready ? '' : 'disabled'}>Test</button>
+        ${ai.ready ? '<span class="badge ok">Connected</span>' : ''}
+      </div>
+    </form>`;
 }
 
 /* ---------- Share target (installed PWA on Android) ---------- */

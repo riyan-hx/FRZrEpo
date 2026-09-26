@@ -22,3 +22,19 @@ Without cloud sync, data is stored only in each browser (use Settings → Export
 - Local-first: the app works fully offline; changes upload ~1.5 s after you stop editing.
 - It pulls the latest copy when you open/focus the app and every minute while it's open.
 - If two devices edit while offline, the most recent save wins.
+
+## 3. AI assistant & voice capture (free)
+Speak or type naturally ("meet the psychologist for Lumid AI tomorrow 3pm, and send the investor update Friday") — the AI splits it into events, tasks, ideas and notes with dates and times, and shows a review sheet before saving.
+
+1. Get a free API key (no card needed):
+   - **Google Gemini** (recommended — also understands voice recordings): https://aistudio.google.com/apikey
+   - **Groq** (fast, voice via Whisper): https://console.groq.com/keys
+   - **OpenRouter** (free `:free` models, text only): https://openrouter.ai/keys
+2. In Lumid HQ: **Settings → AI assistant** → choose the provider → paste the key → **Save** → **Test**.
+3. Tap the 🎤 mic in the capture box on Today, speak, then tap stop.
+
+Notes:
+- The key is stored only in this browser and sent only to the provider you choose; it is not synced to the cloud database.
+- Free tiers have rate limits; if a request fails, the note is still saved with the built-in parser.
+- Voice uses the browser's speech recognition (Chrome, Safari). Where that isn't available, the app records audio and sends it to Gemini or Groq instead.
+- Uncheck **Organize typed notes with AI too** to use AI only for voice.

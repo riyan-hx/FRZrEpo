@@ -645,3 +645,24 @@ input.missing { border-color: color-mix(in srgb, var(--warn) 70%, transparent); 
   .fab { border-radius: 50%; bottom: calc(var(--nav-h) + 24px + var(--safe-b)); }
   .toast { bottom: calc(var(--nav-h) + 32px + var(--safe-b)); }
 }
+
+/* ---------- Voice + AI capture ---------- */
+.capture-box .mic-btn { width: 48px; height: 48px; flex: none; border-radius: 12px; color: var(--muted); }
+.capture-box .mic-btn:hover { color: var(--accent); background: var(--accent-soft); }
+.capture-box .mic-btn.listening { color: #fff; background: var(--danger); animation: mic-pulse 1.2s ease-in-out infinite; }
+.capture-box .mic-btn.listening svg.i { width: 16px; height: 16px; }
+@keyframes mic-pulse { 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--danger) 20%, transparent); } }
+.capture-box.busy input { opacity: .6; }
+.spinner { width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .4); border-top-color: #fff; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.modal-head h2 svg.i { width: 20px; height: 20px; color: var(--accent); vertical-align: -3px; margin-right: 4px; }
+
+.ai-item { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 0.5px solid var(--hairline); }
+.ai-item:last-child { border-bottom: 0; }
+.ai-item .row { flex-wrap: nowrap; }
+.ai-item select { width: auto; flex: 1; min-width: 0; padding-top: 8px; padding-bottom: 8px; font-size: 14px; }
+.ai-item .field-row { gap: 8px; grid-template-columns: 1fr 1fr; }
+.ai-item:has(.check:not(:checked)) > :not(.row) { opacity: .4; }
+.ai-item:has(.ai-kind option[value="idea"]:checked) .ai-when,
+.ai-item:has(.ai-kind option[value="note"]:checked) .ai-when,
+.ai-item:has(.ai-kind option[value="link"]:checked) .ai-when { display: none; }
