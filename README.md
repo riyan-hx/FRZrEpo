@@ -13,6 +13,7 @@ CEO command center for **Lumid AI** and **Lumid Studio** — capture ideas, turn
 - **KPIs** — log metrics over time with sparklines, deltas and targets
 - **Decisions** — decision log with review dates
 - **People** — investors, advisors, hires with follow-up reminders
+- **AI + voice capture** — tap the mic and speak; a free-tier LLM (Gemini, Groq or OpenRouter) turns it into events, tasks and ideas with dates and times (see SETUP.md)
 - Venture filter, global search (`⌘K` / `Ctrl+K`), light/dark theme, JSON backup/restore, installable PWA with offline support
 
 ### Quick capture
