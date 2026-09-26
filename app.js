@@ -61,6 +61,8 @@ const ICONS = {
   sparkle: '<path d="M12 2.5c.7 5 2.5 6.8 7.5 7.5-5 .7-6.8 2.5-7.5 7.5-.7-5-2.5-6.8-7.5-7.5 5-.7 6.8-2.5 7.5-7.5z" fill="currentColor" stroke="none"/>',
   coins: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>',
   chevron: '<path d="m9 6 6 6-6 6"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>',
+  moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
   more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
@@ -155,7 +157,7 @@ const store = {
 };
 
 let db = store.load();
-const state = { view: 'today', venture: 'All', calMonth: today().slice(0, 7), calDay: today(), calMode: 'month', notesQuery: '', tasksTab: 'open', resTab: 'watch', resQuery: '' };
+const state = { view: 'today', venture: 'All', calMonth: today().slice(0, 7), calDay: today(), calMode: 'month', metricRange: '6m', notesQuery: '', tasksTab: 'open', resTab: 'watch', resQuery: '' };
 
 const ventureColor = (v) => VENTURE_COLORS[Math.max(0, db.ventures.indexOf(v)) % VENTURE_COLORS.length];
 const ventureBadge = (v) => v ? `<span class="badge" style="--c:${ventureColor(v)}"><span class="dot"></span>${esc(v)}</span>` : '';
@@ -514,20 +516,31 @@ function viewToday() {
   const dayPlan = db.plans[t];
   const goals = byVenture(db.goals);
   const goalAvg = goals.length ? Math.round(goals.reduce((s, g) => s + goalProgress(g), 0) / goals.length) : 0;
+  const todayMetrics = byVenture(db.metrics).slice(0, 3);
 
   return `
     <div class="hero">
-      <span class="hero-spark" aria-hidden="true">${icon('sparkle')}</span>
+      <svg class="hero-deco" viewBox="0 0 300 140" preserveAspectRatio="none" aria-hidden="true">
+        <defs><linearGradient id="hero-deco-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--accent)"/><stop offset="1" style="stop-color:#8ab4ff"/></linearGradient></defs>
+        <circle cx="215" cy="92" r="58" fill="url(#hero-deco-g)" opacity=".28"/>
+        <path d="M40 140C90 96 150 92 196 112c34-26 82-30 104-8V140Z" fill="url(#hero-deco-g)" opacity=".22"/>
+        <path d="M120 140c40-24 96-30 180-6V140Z" fill="url(#hero-deco-g)" opacity=".18"/>
+      </svg>
+      <span class="hero-badge" aria-hidden="true">${icon(h >= 6 && h < 18 ? 'sun' : 'moon')}</span>
       <h2>${greet}</h2>
-      <p>${fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' })} · ${dueToday.length} due today · ${events.length} on the calendar</p>
+      <p class="hero-date">${fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+      <p class="hero-meta">${dueToday.length} due today · ${events.length} on the calendar</p>
       ${captureBox()}
     </div>
 
     <div class="grid tiles section">
-      ${statTile('Open tasks', tasks.length, overdue.length ? `<span class="delta down">${overdue.length} overdue</span>` : '<span class="muted">on track</span>', 'tasks', 'tasks')}
-      ${statTile('Active ideas', ideas.filter((i) => !['shipped', 'parked'].includes(i.stage)).length, `<span class="muted">${ideas.filter((i) => i.stage === 'building').length} building</span>`, 'ideas', 'ideas')}
-      ${statTile('Goal progress', goalAvg + '%', `<span class="muted">${goals.length} objectives</span>`, 'goals', 'goals')}
-      ${byVenture(db.metrics).slice(0, 3).map(metricTile).join('')}
+      ${statTile('Open tasks', tasks.length, overdue.length ? `<span class="delta down">${overdue.length} overdue</span>` : '<span class="muted">on track</span>', 'tasks', 'tasks',
+        miniBars(dailyCounts(byVenture(db.tasks).filter((x) => x.done && x.doneAt).map((x) => toISO(new Date(x.doneAt)))), 'var(--accent)'))}
+      ${statTile('Active ideas', ideas.filter((i) => !['shipped', 'parked'].includes(i.stage)).length, `<span class="muted">${ideas.filter((i) => i.stage === 'building').length} building</span>`, 'ideas', 'ideas',
+        miniBars(dailyCounts(ideas.filter((i) => i.createdAt).map((i) => toISO(new Date(i.createdAt)))), '#2fbf8f'))}
+      ${statTile('Goal progress', goalAvg + '%', `<span class="muted">${goals.length} objectives</span>`, 'goals', 'goals',
+        `<div class="tile-progress" role="progressbar" aria-valuenow="${goalAvg}" aria-valuemin="0" aria-valuemax="100"><span style="width:${goalAvg}%"></span></div>`)}
+      ${todayMetrics.map((m, i) => metricTile(m, (3 + todayMetrics.length) % 2 === 1 && i === todayMetrics.length - 1)).join('')}
     </div>
 
     <div class="grid two">
@@ -623,17 +636,31 @@ function syncCapturePills(input) {
   input.placeholder = (CAPTURE_TYPES.find((c) => c.k === kind) || CAPTURE_TYPES[0]).ph;
 }
 
-function tileHead(label, glyph) {
+function tileHead(label, glyph, extra = '') {
   const [, color] = TILE_GRADIENTS[glyph] || TILE_GRADIENTS.today;
-  return `<div class="tile-head"><span class="tile-icon" style="--ic:${color}">${icon(glyph)}</span><span class="label">${label}</span></div>`;
+  return `<div class="tile-head"><span class="tile-icon" style="--ic:${color}">${icon(glyph)}</span><span class="label">${label}</span>${extra}<span class="tile-chev">${icon('chevron')}</span></div>`;
 }
 
-function statTile(label, value, sub, nav, glyph) {
+function statTile(label, value, sub, nav, glyph, viz = '') {
   return `<div class="tile card click" data-nav="${nav}">
     ${tileHead(label, glyph)}
-    <div class="tile-body"><div><div class="value">${value}</div><div class="delta">${sub}</div></div></div>
-    <span class="tile-chev">${icon('chevron')}</span>
+    <div class="tile-body"><div><div class="value">${value}</div><div class="delta">${sub}</div></div>${viz}</div>
   </div>`;
+}
+
+// Counts per day for the last `days` days (oldest first).
+function dailyCounts(isoDates, days = 5) {
+  const t = today();
+  return Array.from({ length: days }, (_, i) => isoDates.filter((d) => d === addDays(t, i - days + 1)).length);
+}
+
+function miniBars(counts, color) {
+  const max = Math.max(...counts, 1);
+  const empty = counts.every((n) => !n);
+  return `<div class="mini-bars" style="--bc:${color}" aria-hidden="true">${counts.map((n, i) => {
+    const h = empty ? 25 + i * 18 : Math.max(12, Math.round((n / max) * 100));
+    return `<i style="height:${h}%;opacity:${(0.3 + i * 0.175).toFixed(2)}"></i>`;
+  }).join('')}</div>`;
 }
 
 /* ---------- View: Ideas ---------- */
@@ -920,17 +947,43 @@ function viewGoals() {
 }
 
 /* ---------- View: Metrics ---------- */
-function sparkline(values) {
+const SPARK_TONES = { accent: ['var(--accent)', '#5aa9ff'], green: ['#2fbf8f', '#2fbf8f'] };
+
+// Smooth curve through points (Catmull-Rom → cubic Bézier).
+function smoothPath(p) {
+  let d = `M${p[0][0]},${p[0][1]}`;
+  for (let i = 0; i < p.length - 1; i++) {
+    const [p0, p1, p2, p3] = [p[i - 1] || p[i], p[i], p[i + 1], p[i + 2] || p[i + 1]];
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += ` C${c1.map((n) => n.toFixed(2))} ${c2.map((n) => n.toFixed(2))} ${p2.map((n) => n.toFixed(2))}`;
+  }
+  return d;
+}
+
+function sparkline(values, { tone = 'accent', grid = false } = {}) {
   if (values.length < 2) return '';
   const gid = 'sg-' + uid();
+  const [c1, c2] = SPARK_TONES[tone] || SPARK_TONES.accent;
   const min = Math.min(...values), max = Math.max(...values), range = max - min || 1;
-  const pts = values.map((v, i) => `${(i / (values.length - 1)) * 100},${34 - ((v - min) / range) * 30}`).join(' ');
+  const pts = values.map((v, i) => [(i / (values.length - 1)) * 100, 34 - ((v - min) / range) * 30]);
+  const line = smoothPath(pts);
+  const gridLines = grid ? [20, 40, 60, 80].map((x) => `<line x1="${x}" y1="0" x2="${x}" y2="36" class="spark-grid" vector-effect="non-scaling-stroke"/>`).join('') : '';
   return `<svg class="spark" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true">
-    <defs><linearGradient id="${gid}" x1="0" x2="1"><stop offset="0" style="stop-color:var(--accent)"/><stop offset="1" style="stop-color:var(--accent-2)"/></linearGradient>
-    <linearGradient id="${gid}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--accent-2);stop-opacity:.22"/><stop offset="1" style="stop-color:var(--accent-2);stop-opacity:0"/></linearGradient></defs>
-    <polygon points="0,36 ${pts} 100,36" fill="url(#${gid}a)"/>
-    <polyline points="${pts}" fill="none" stroke="url(#${gid})" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+    <defs><linearGradient id="${gid}" x1="0" x2="1"><stop offset="0" style="stop-color:${c1}"/><stop offset="1" style="stop-color:${c2}"/></linearGradient>
+    <linearGradient id="${gid}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:${c2};stop-opacity:.24"/><stop offset="1" style="stop-color:${c2};stop-opacity:0"/></linearGradient></defs>
+    ${gridLines}
+    <path d="${line} L100,36 L0,36 Z" fill="url(#${gid}a)"/>
+    <path d="${line}" fill="none" stroke="url(#${gid})" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 }
+
+const METRIC_RANGES = [['30d', 'Last 30 days', 30], ['6m', 'Last 6 months', 183], ['all', 'All time', Infinity]];
+const inRange = (entries) => {
+  const days = (METRIC_RANGES.find(([k]) => k === state.metricRange) || METRIC_RANGES[1])[2];
+  if (days === Infinity) return entries;
+  const from = addDays(today(), -days);
+  return entries.filter((e) => e.date >= from);
+};
 const metricValue = (m, v) => {
   const u = (m.unit || '').trim();
   if (['$', '€', '£', '₹'].includes(u)) return u + fmtNum(v);
@@ -947,17 +1000,21 @@ function metricDelta(m) {
 }
 const sortedEntries = (m) => [...(m.entries || [])].sort((a, b) => a.date.localeCompare(b.date));
 
-function metricTile(m) {
+function metricTile(m, wide = false) {
   const e = sortedEntries(m);
   const last = e.at(-1);
-  const glyph = ['$', '€', '£', '₹'].includes((m.unit || '').trim()) ? 'coins' : /user|people|customer|member/i.test(m.name) ? 'people' : 'metrics';
-  return `<div class="tile card click metric-tile" data-log="${m.id}">
-    ${tileHead(esc(m.name), glyph)}
+  const money = ['$', '€', '£', '₹'].includes((m.unit || '').trim());
+  const glyph = money ? 'coins' : /user|people|customer|member/i.test(m.name) ? 'people' : 'metrics';
+  const range = wide
+    ? `<select class="range-select" data-metric-range aria-label="Chart range">${METRIC_RANGES.map(([k, l]) => `<option value="${k}" ${k === state.metricRange ? 'selected' : ''}>${l}</option>`).join('')}</select>`
+    : '';
+  const series = (wide ? inRange(e) : e).map((x) => x.value);
+  return `<div class="tile card click metric-tile ${wide ? 'wide' : ''}" data-log="${m.id}">
+    ${tileHead(esc(m.name), glyph, range)}
     <div class="tile-body">
       <div><div class="value">${last ? metricValue(m, last.value) : '—'}</div><div class="delta">${metricDelta(m) || '<span class="muted">log a value</span>'}</div></div>
-      ${sparkline(e.map((x) => x.value))}
+      ${sparkline(series, { tone: money ? 'green' : 'accent', grid: wide })}
     </div>
-    <span class="tile-chev">${icon('chevron')}</span>
   </div>`;
 }
 
@@ -1425,6 +1482,9 @@ document.addEventListener('change', (e) => {
     store.save();
     if (t.done) toast('Task completed ✓', 'Undo', () => { t.done = false; t.doneAt = null; store.save(); render(); });
     setTimeout(render, t.done ? 350 : 0);
+  } else if (el.matches('[data-metric-range]')) {
+    state.metricRange = el.value;
+    render();
   } else if (el.dataset.stage) {
     const i = find('ideas', el.dataset.stage);
     if (i) { i.stage = el.value; store.save(); render(); }
