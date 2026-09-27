@@ -1286,7 +1286,7 @@ function openCollectionForm(id) {
   openModal(c ? 'Rename collection' : 'New collection', `
     <form id="col-form" data-form="col-form" data-id="${c ? c.id : ''}">
       <div class="field"><label for="col-name">Name</label>
-        <input type="text" id="col-name" name="name" value="${esc(c?.name || '')}" placeholder="Instagram reels, Claude videos…" required autocomplete="off" autofocus></div>
+        <input type="text" id="col-name" name="name" value="${esc(c?.name || '')}" placeholder="Instagram reels, Design videos…" required autocomplete="off" autofocus></div>
     </form>`,
     `<button class="btn ghost" type="button" data-action="close">Cancel</button><span class="spacer"></span><button class="btn" type="submit" form="col-form">${c ? 'Save' : 'Create'}</button>`);
 }

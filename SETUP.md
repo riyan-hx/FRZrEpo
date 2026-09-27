@@ -11,12 +11,15 @@ Order: **1 Hosting → 2 Supabase → 3 Google sign-in → 4 Lemon Squeezy → 5
 GitHub Pages doesn't allow commercial use, so move to Cloudflare Pages (free, commercial OK).
 
 1. https://dash.cloudflare.com → **Workers & Pages → Create → Pages → Connect to Git** → pick `riyan-hx/FRZrEpo`.
-2. Build settings: Framework **None**, build command **empty**, output directory **`/`**. Deploy.
+2. Build settings: Framework **None**, build command **`sh scripts/build.sh`**, output directory **`dist`**. Deploy.
+   This publishes only the app files — README, SETUP, `supabase/` and scripts are never served.
 3. **Custom domains → Set up a domain → `hq.lumid.in`** and follow the DNS instructions.
    (If lumid.in's DNS isn't on Cloudflare, add the CNAME it shows at your registrar.)
 4. The app is at `https://hq.lumid.in/`, the landing page at `https://hq.lumid.in/landing.html`
    (or copy `landing.html` to `lumid.in/hq`).
 5. Once live, turn off GitHub Pages (repo Settings → Pages → Source: None).
+6. Make the repository **private** (repo Settings → General → Danger zone → Change visibility).
+   Cloudflare Pages keeps deploying from a private repo, and your code, history and pull requests stop being public.
 
 `_headers` adds security headers and makes sure updates reach users immediately.
 
