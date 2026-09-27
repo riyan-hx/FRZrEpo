@@ -1550,7 +1550,7 @@ const ACTIONS = {
   'signin-google': () => cloud.signInWithGoogle(),
   upgrade: () => openUpgrade(),
   'delete-account': () => {
-    if (!confirm('Delete your Lumid HQ account and all synced data? Any subscription is cancelled. This cannot be undone.')) return;
+    if (!confirm('Delete your Lumid HQ account and all its data? Any subscription is cancelled. This cannot be undone — use Export JSON first if you want a copy.')) return;
     if (prompt('Type DELETE to confirm') !== 'DELETE') return toast('Account not deleted');
     cloud.deleteAccount();
   },
@@ -1573,7 +1573,18 @@ const ACTIONS = {
     } catch (err) { toast(`AI: ${err.message}`); }
     el.disabled = false;
   },
-  'cloud-signout': () => cloud.signOut(),
+  'cloud-signout': () => {
+    if (HOSTED && cloud.cfg.dirty && !confirm('Some changes haven’t synced yet and will be removed from this device when you sign out. Use Export JSON first to keep a copy. Sign out anyway?')) return;
+    cloud.signOut();
+  },
+  'auth-mode': (el) => showAuth(el.dataset.mode),
+  'auth-retry': () => location.reload(),
+  'auth-resend': async (el) => {
+    el.disabled = true;
+    const { error } = await cloud.client.auth.resend({ type: 'signup', email: authState.email, options: { emailRedirectTo: cloud.redirectTo() } });
+    el.disabled = false;
+    if (error) authError(error.message); else toast('Verification email sent again');
+  },
   'cloud-disconnect': () => { if (confirm('Disconnect cloud sync on this device? Your data stays here and in the cloud.')) cloud.disconnect(); },
   demo: () => {
     if (!confirm('Replace current data with demo data?')) return;
@@ -1680,6 +1691,7 @@ document.addEventListener('submit', (e) => {
   const form = e.target;
   if (!form.dataset.form) return;
   e.preventDefault();
+  if (form.dataset.form.startsWith('auth-')) return handleAuthForm(form);
   switch (form.dataset.form) {
     case 'capture': {
       const input = form.elements.q;
@@ -1839,22 +1851,42 @@ const cloud = {
     try {
       const { createClient } = await import(SUPABASE_JS);
       const { url, key } = this.endpoint;
+      this.recovering = /type=recovery/.test(location.hash);
       this.client = createClient(url, key, { auth: { persistSession: true, storageKey: 'lumid-hq-auth', detectSessionInUrl: true } });
+      this.client.auth.onAuthStateChange((event, session) => {
+        this.user = session?.user || null;
+        if (event === 'PASSWORD_RECOVERY') { this.recovering = true; showAuth('reset'); }
+        if (event === 'SIGNED_IN' && this.user) setTimeout(() => this.afterSignIn());
+      });
       const { data } = await this.client.auth.getSession();
       this.user = data.session?.user || null;
-      this.client.auth.onAuthStateChange((event, session) => {
-        const wasSignedOut = !this.user;
-        this.user = session?.user || null;
-        if (event === 'SIGNED_IN' && wasSignedOut && this.user) this.afterSignIn();
-      });
       if (this.user) await this.afterSignIn();
-      else this.set('signed-out');
-    } catch { this.set(navigator.onLine ? 'error' : 'offline'); }
+      else {
+        this.set('signed-out');
+        if (HOSTED) showAuth(defaultAuthMode());
+      }
+    } catch {
+      this.set(navigator.onLine ? 'error' : 'offline');
+      // Signed in before? Keep working offline; otherwise explain why sign-in isn't possible.
+      let hadSession = false;
+      try { hadSession = Boolean(localStorage.getItem('lumid-hq-auth')); } catch {}
+      if (HOSTED) { if (hadSession) hideAuth(); else showAuth('offline'); }
+    }
   },
 
   // A sign-in that just completed (Google or email link) makes the cloud copy win;
   // this device's data is kept as a local backup. Returning sessions just sync.
-  async afterSignIn() {
+  afterSignIn() {
+    if (!this.pendingAfter) this.pendingAfter = this.runAfterSignIn();
+    return this.pendingAfter;
+  },
+
+  async runAfterSignIn() {
+    if (HOSTED) {
+      hideAuth();
+      try { localStorage.setItem(HAS_ACCOUNT_KEY, '1'); } catch {}
+      if (this.recovering) showAuth('reset');
+    }
     let fresh = false;
     try { fresh = localStorage.getItem(PENDING_SIGNIN_KEY) === '1'; localStorage.removeItem(PENDING_SIGNIN_KEY); } catch {}
     if (fresh) {
@@ -1865,8 +1897,10 @@ const cloud = {
     }
     await this.loadPlan();
     await this.pull();
-    if (fresh) toast(`Signed in as ${this.user.email}`);
     render();
+    // Brand-new account with nothing on this device yet: set up projects first.
+    if (HOSTED && !this.recovering && !localStorage.getItem(STORE_KEY)) openWelcome();
+    else if (fresh) toast(`Signed in as ${this.user.email}`);
   },
 
   async loadPlan() {
@@ -1905,7 +1939,7 @@ const cloud = {
     this.set('syncing');
     const { data, error } = await this.client.from('hq_state').select('data, updated_at').eq('user_id', this.user.id).maybeSingle();
     if (error) return this.set(navigator.onLine ? 'error' : 'offline');
-    if (!data) return this.push();
+    if (!data) return HOSTED && !localStorage.getItem(STORE_KEY) ? this.set('synced') : this.push();
     const remoteAt = Date.parse(data.updated_at);
     const remoteNewer = remoteAt > (this.cfg.lastSynced || 0);
     if (remoteNewer && (!this.cfg.dirty || remoteAt > (this.cfg.localUpdatedAt || 0))) {
@@ -1957,15 +1991,20 @@ const cloud = {
     await this.client?.auth.signOut();
     this.user = null;
     this.plan = null;
+    this.pendingAfter = null;
+    // With required accounts the device copy belongs to the account: clear it so the
+    // next person to sign in here never sees or uploads someone else's data.
+    if (HOSTED) clearLocalData();
     this.set(this.configured ? 'signed-out' : 'off');
     render();
+    if (HOSTED) showAuth('signin');
   },
 
   async deleteAccount() {
     const { data, error } = await this.client.functions.invoke('delete-account', { method: 'POST' });
     if (error || data?.error) return toast(data?.error || 'Could not delete the account — try again');
     await this.signOut();
-    toast('Account deleted. Your data on this device is untouched.');
+    toast('Your account has been deleted.');
   },
 
   async connect(url, key) {
@@ -2058,7 +2097,8 @@ function accountCard() {
   }
   const last = cloud.cfg.lastSynced ? new Date(cloud.cfg.lastSynced).toLocaleString() : 'never';
   const line = planLine();
-  return `<p class="small muted">Signed in as <b>${esc(cloud.user.email || '')}</b>${line ? `<br>${esc(line)}` : ''}<br>Sync: ${SYNC_LABELS[cloud.status] || '—'} · last synced ${esc(last)}</p>
+  const name = cloud.user.user_metadata?.full_name;
+  return `<p class="small muted">Signed in as <b>${esc(name ? `${name} · ${cloud.user.email}` : cloud.user.email || '')}</b>${line ? `<br>${esc(line)}` : ''}<br>Sync: ${SYNC_LABELS[cloud.status] || '—'} · last synced ${esc(last)}</p>
     <div class="row">
       ${cloud.plan && !cloud.isPaid ? '<button class="btn" data-action="upgrade">Upgrade to Pro</button>' : ''}
       ${cloud.plan?.subscription_id ? `<a class="btn ghost" href="${esc(manageBillingUrl())}" target="_blank" rel="noopener">Manage billing</a>` : ''}
@@ -2461,7 +2501,6 @@ function openWelcome() {
         <input type="text" id="welcome-projects" name="projects" placeholder="e.g. Acme, Side project" autocomplete="off">
         <p class="small muted" style="margin:8px 0 0">Your companies or projects, separated by commas. You can change this later.</p></div>
       <label class="row small"><input type="checkbox" class="check" name="sample" checked> Add sample data to explore</label>
-      ${HOSTED ? '<p class="small muted" style="margin-top:16px">Already have an account? <button type="button" class="link-btn" data-action="signin">Sign in</button></p>' : ''}
     </form>`,
     `<a class="btn ghost" href="${LAUNCH.privacyUrl}" target="_blank" rel="noopener">Privacy</a><span class="spacer"></span><button class="btn" type="submit" form="welcome-form">Get started</button>`);
 }
@@ -2475,6 +2514,169 @@ function finishWelcome(form) {
   closeModal();
   render();
   toast('You’re all set — capture your first idea');
+}
+
+/* ---------- Sign-up & sign-in screen (required when accounts are on) ---------- */
+const HAS_ACCOUNT_KEY = 'lumid-hq-has-account';
+const authState = { mode: 'signup', email: '', notice: '' };
+
+function defaultAuthMode() {
+  const asked = new URLSearchParams(location.search).get('mode');
+  if (asked === 'signin' || asked === 'signup') return asked;
+  try { return localStorage.getItem(HAS_ACCOUNT_KEY) ? 'signin' : 'signup'; } catch { return 'signup'; }
+}
+
+function showAuth(mode, notice = '') {
+  authState.mode = mode;
+  authState.notice = notice;
+  if (modal.open) closeModal();
+  document.body.classList.add('gated');
+  const el = $('#auth');
+  el.hidden = false;
+  el.innerHTML = authView();
+  $('input', el)?.focus();
+}
+
+function hideAuth() {
+  document.body.classList.remove('gated');
+  $('#auth').hidden = true;
+}
+
+function authError(message) {
+  const el = $('#auth-error');
+  if (el) { el.textContent = message; el.hidden = !message; }
+}
+
+function authView() {
+  const { mode, email, notice } = authState;
+  const google = `<button class="btn google-btn" type="button" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button><div class="or-rule"><span>or</span></div>`;
+  const legal = `<p class="small muted auth-legal">By continuing you agree to the <a href="${LAUNCH.termsUrl}" target="_blank" rel="noopener">Terms</a> and <a href="${LAUNCH.privacyUrl}" target="_blank" rel="noopener">Privacy Policy</a>.</p>`;
+  const switcher = (text, to, label) => `<p class="small auth-switch">${text} <button type="button" class="link-btn" data-action="auth-mode" data-mode="${to}">${label}</button></p>`;
+  const error = `<p class="auth-error" id="auth-error" role="alert" hidden></p>`;
+  const views = {
+    loading: () => `<div class="auth-loading"><span class="spinner dark"></span></div>`,
+    offline: () => `<h2>You’re offline</h2><p class="auth-sub">Connect to the internet to sign in. Once you’re signed in, Lumid HQ works offline.</p>
+      <button class="btn" type="button" data-action="auth-retry">Try again</button>`,
+    signup: () => `<h2>Create your account</h2><p class="auth-sub">${LAUNCH.trialDays} days of Pro free. No card needed.</p>
+      ${google}
+      <form data-form="auth-signup" novalidate>
+        <div class="field"><label for="auth-name">Your name</label><input type="text" id="auth-name" name="name" autocomplete="name" required></div>
+        <div class="field"><label for="auth-email">Email</label><input type="email" id="auth-email" name="email" autocomplete="email" value="${esc(email)}" required></div>
+        <div class="field"><label for="auth-password">Password</label><input type="password" id="auth-password" name="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters"></div>
+        ${error}
+        <button class="btn auth-submit" type="submit">Create account</button>
+      </form>
+      ${switcher('Already have an account?', 'signin', 'Sign in')}${legal}`,
+    signin: () => `<h2>Welcome back</h2><p class="auth-sub">Sign in to your Lumid HQ account.</p>
+      ${notice ? `<p class="confirm-note">${notice}</p>` : ''}
+      ${google}
+      <form data-form="auth-signin" novalidate>
+        <div class="field"><label for="auth-email">Email</label><input type="email" id="auth-email" name="email" autocomplete="email" value="${esc(email)}" required></div>
+        <div class="field"><label for="auth-password">Password <button type="button" class="link-btn auth-forgot" data-action="auth-mode" data-mode="forgot">Forgot password?</button></label>
+          <input type="password" id="auth-password" name="password" autocomplete="current-password" required></div>
+        ${error}
+        <button class="btn auth-submit" type="submit">Sign in</button>
+      </form>
+      ${switcher('New to Lumid HQ?', 'signup', 'Create an account')}${legal}`,
+    verify: () => `<h2>Check your email</h2>
+      <p class="auth-sub">We sent a verification link to <b>${esc(email)}</b>. Tap it to finish creating your account — it may take a minute, and check spam just in case.</p>
+      ${error}
+      <div class="row"><button class="btn ghost" type="button" data-action="auth-resend">Resend email</button><button class="btn ghost" type="button" data-action="auth-mode" data-mode="signin">Back to sign in</button></div>`,
+    forgot: () => `<h2>Reset your password</h2><p class="auth-sub">Enter your email and we’ll send you a link to set a new password.</p>
+      <form data-form="auth-forgot" novalidate>
+        <div class="field"><label for="auth-email">Email</label><input type="email" id="auth-email" name="email" autocomplete="email" value="${esc(email)}" required></div>
+        ${error}
+        <button class="btn auth-submit" type="submit">Send reset link</button>
+      </form>
+      ${switcher('Remembered it?', 'signin', 'Back to sign in')}`,
+    reset: () => `<h2>Set a new password</h2><p class="auth-sub">Choose a new password for your account.</p>
+      <form data-form="auth-reset" novalidate>
+        <div class="field"><label for="auth-password">New password</label><input type="password" id="auth-password" name="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters"></div>
+        <div class="field"><label for="auth-confirm">Confirm password</label><input type="password" id="auth-confirm" name="confirm" autocomplete="new-password" minlength="8" required></div>
+        ${error}
+        <button class="btn auth-submit" type="submit">Update password</button>
+      </form>`,
+  };
+  return `<div class="auth-panel">
+      <div class="auth-brand"><img src="icon.svg" alt="" width="40" height="40"><div><strong>Lumid HQ</strong><small>by Lumid</small></div></div>
+      <h1>Run everything you’re building from one screen.</h1>
+      <ul><li>Capture ideas by voice or text</li><li>Plan your day, track every deadline</li><li>Save reels and videos into searchable collections</li></ul>
+    </div>
+    <div class="auth-main"><div class="auth-card">${(views[mode] || views.signin)()}</div></div>`;
+}
+
+const validEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+async function withBusy(form, fn) {
+  const btn = $('button[type=submit]', form);
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  try { await fn(); } finally { if (btn.isConnected) { btn.disabled = false; btn.textContent = label; } }
+}
+
+async function handleAuthForm(form) {
+  const auth = cloud.client?.auth;
+  if (!auth) return authError('Can’t reach the server — check your connection.');
+  const f = form.elements;
+  const email = f.email?.value.trim().toLowerCase() || '';
+  authError('');
+  switch (form.dataset.form) {
+    case 'auth-signup': {
+      const name = f.name.value.trim();
+      if (!name) return authError('Please enter your name.');
+      if (!validEmail(email)) return authError('Please enter a valid email address.');
+      if (f.password.value.length < 8) return authError('Use at least 8 characters for your password.');
+      return withBusy(form, async () => {
+        cloud.markPendingSignIn();
+        const { data, error } = await auth.signUp({ email, password: f.password.value, options: { data: { full_name: name }, emailRedirectTo: cloud.redirectTo() } });
+        if (error) return authError(error.message);
+        authState.email = email;
+        // With email confirmation on, an already-registered address comes back with no identities.
+        if (data.user && Array.isArray(data.user.identities) && !data.user.identities.length) return showAuth('signin', 'You already have an account — sign in below.');
+        if (!data.session) showAuth('verify');
+      });
+    }
+    case 'auth-signin': {
+      if (!validEmail(email)) return authError('Please enter a valid email address.');
+      if (!f.password.value) return authError('Please enter your password.');
+      return withBusy(form, async () => {
+        cloud.markPendingSignIn();
+        const { error } = await auth.signInWithPassword({ email, password: f.password.value });
+        if (!error) return;
+        authState.email = email;
+        if (/not confirmed/i.test(error.message)) return showAuth('verify');
+        authError(/invalid/i.test(error.message) ? 'Wrong email or password.' : error.message);
+      });
+    }
+    case 'auth-forgot': {
+      if (!validEmail(email)) return authError('Please enter a valid email address.');
+      return withBusy(form, async () => {
+        const { error } = await auth.resetPasswordForEmail(email, { redirectTo: cloud.redirectTo() });
+        if (error) return authError(error.message);
+        authState.email = email;
+        showAuth('signin', `If an account exists for <b>${esc(email)}</b>, a reset link is on its way.`);
+      });
+    }
+    case 'auth-reset': {
+      if (f.password.value.length < 8) return authError('Use at least 8 characters for your password.');
+      if (f.password.value !== f.confirm.value) return authError('The passwords don’t match.');
+      return withBusy(form, async () => {
+        const { error } = await auth.updateUser({ password: f.password.value });
+        if (error) return authError(error.message);
+        cloud.recovering = false;
+        hideAuth();
+        render();
+        toast('Password updated');
+      });
+    }
+  }
+}
+
+function clearLocalData() {
+  [STORE_KEY, STORE_KEY + '-presync', CLOUD_KEY].forEach((k) => { try { localStorage.removeItem(k); } catch {} });
+  db = emptyDb();
+  cloud.cfg = {};
 }
 
 /* ---------- Share target (installed PWA on Android) ---------- */
@@ -2499,7 +2701,8 @@ handleShare();
 render();
 if (new URLSearchParams(location.search).get('labs') === '1') { try { localStorage.setItem(LABS_KEY, '1'); } catch {} }
 if (!launchMeta.get().firstSeen) launchMeta.set({ firstSeen: today() });
-if (firstRun) { render(); openWelcome(); }
+if (HOSTED) showAuth('loading');
+else if (firstRun) { render(); openWelcome(); }
 cloud.init();
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible' || !cloud.user) return;
