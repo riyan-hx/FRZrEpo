@@ -1,4 +1,4 @@
--- Lumid HQ database: synced data, trials and subscriptions.
+-- The Forge database: synced data, trials and subscriptions.
 -- Safe to run more than once (Supabase → SQL Editor → paste → Run).
 
 -- ---------------------------------------------------------------------------

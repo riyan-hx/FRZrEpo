@@ -1,5 +1,5 @@
 /* =========================================================
-   Lumid HQ — design system (Cohere-inspired)
+   The Forge — design system (Cohere-inspired)
    White editorial canvas · deep green band · flat surfaces
    Display: Space Grotesk · Body: Inter · Labels: mono
    ========================================================= */
@@ -629,12 +629,13 @@ body.gated .app, body.gated .bottom-nav, body.gated .fab { display: none !import
 .auth-loading { display: grid; place-items: center; min-height: 200px; }
 .spinner.dark { border-color: var(--hairline); border-top-color: var(--text); width: 28px; height: 28px; }
 @media (max-width: 900px) {
-  .auth { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-  .auth-panel { padding: calc(env(safe-area-inset-top, 0px) + 24px) 16px 24px; gap: 16px; }
+  .auth { display: block; }
+  .auth-panel { padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px 16px; gap: 12px; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+  .auth-panel h1 { display: none; }
   .auth-brand { position: static; }
   .auth-panel h1 { font-size: 30px; max-width: none; }
   .auth-panel ul { display: none; }
-  .auth-main { place-items: start center; padding: 32px 16px calc(32px + var(--safe-b)); }
+  .auth-main { display: flex; justify-content: center; padding: 32px 16px calc(32px + var(--safe-b)); }
   .auth-card h2 { font-size: 30px; }
 }
 
@@ -649,4 +650,17 @@ body.gated .app, body.gated .bottom-nav, body.gated .fab { display: none !import
 .trial-days small { font: 10px var(--font-mono); text-transform: uppercase; margin-top: 2px; }
 .trial-card strong { display: block; font: 500 18px/1.2 var(--font-text); }
 .trial-card span:not(.trial-days) { display: block; font-size: 13px; color: var(--slate); margin-top: 4px; }
-@media (max-width: 900px) { .auth-panel .trial-badge { order: 3; } }
+/* Sign-in screen on small and short screens */
+@media (max-width: 380px) {
+  .auth-panel h1 { font-size: 24px; }
+  .auth-card h2 { font-size: 26px; }
+  .trial-card { gap: 12px; padding: 12px; }
+  .trial-days { width: 52px; height: 52px; font-size: 22px; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  .auth { display: block; }
+  .auth-panel { padding: calc(env(safe-area-inset-top, 0px) + 12px) 24px 12px; flex-direction: row; align-items: center; gap: 16px; }
+  .auth-panel h1, .auth-panel ul { display: none; }
+  .auth-brand { position: static; }
+  .auth-main { padding: 24px; display: flex; justify-content: center; }
+}
