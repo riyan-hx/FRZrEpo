@@ -19,8 +19,9 @@ const LAUNCH = {
   price: { monthly: '$5', yearly: '$48' },
   // ↓ Fill these in to switch on accounts, trials and payments (see SETUP.md). Both Supabase
   //   values are public by design — Row Level Security protects the data.
-  supabaseUrl: '',
-  supabaseKey: '',
+  supabaseUrl: 'https://rbxxtyjcxexknnspgnyv.supabase.co',
+  supabaseKey: 'sb_publishable_FQC75Lv6PjGtqBHiFV4vxw_JWCQEtaa',
+  googleSignIn: false, // set to true once Google is enabled in Supabase (SETUP.md §3)
   checkout: { monthly: '', yearly: '' }, // Lemon Squeezy checkout links (Share → Checkout link)
   analyticsToken: '', // Cloudflare Web Analytics token (optional)
   sentryLoader: '', // Sentry "Loader Script" URL, e.g. https://js.sentry-cdn.com/<key>.min.js (optional)
@@ -2051,8 +2052,8 @@ function openSignIn(reason = '') {
   if (!cloud.client) return toast(navigator.onLine ? 'Accounts are loading — try again in a moment' : 'You’re offline');
   openModal('Sign in to Lumid HQ', `
     <p class="welcome-lead">${reason || `Sync your ideas, tasks and plans across phone and laptop. New accounts get ${LAUNCH.trialDays} days of Pro free — no card needed.`}</p>
-    <button class="btn google-btn" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button>
-    <div class="or-rule"><span>or</span></div>
+    ${LAUNCH.googleSignIn ? `<button class="btn google-btn" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button>
+    <div class="or-rule"><span>or</span></div>` : ''}
     <form id="signin-form" data-form="signin-email">
       <div class="field"><label for="signin-email">Email</label>
         <input type="email" id="signin-email" name="email" required autocomplete="email" placeholder="you@company.com"></div>
@@ -2549,7 +2550,7 @@ function authError(message) {
 
 function authView() {
   const { mode, email, notice } = authState;
-  const google = `<button class="btn google-btn" type="button" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button><div class="or-rule"><span>or</span></div>`;
+  const google = LAUNCH.googleSignIn ? `<button class="btn google-btn" type="button" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button><div class="or-rule"><span>or</span></div>` : '';
   const legal = `<p class="small muted auth-legal">By continuing you agree to the <a href="${LAUNCH.termsUrl}" target="_blank" rel="noopener">Terms</a> and <a href="${LAUNCH.privacyUrl}" target="_blank" rel="noopener">Privacy Policy</a>.</p>`;
   const switcher = (text, to, label) => `<p class="small auth-switch">${text} <button type="button" class="link-btn" data-action="auth-mode" data-mode="${to}">${label}</button></p>`;
   const error = `<p class="auth-error" id="auth-error" role="alert" hidden></p>`;

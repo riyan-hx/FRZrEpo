@@ -53,6 +53,7 @@ GitHub Pages doesn't allow commercial use, so move to Cloudflare Pages (free, co
    - Authorized redirect URI: `https://xxxx.supabase.co/auth/v1/callback` (shown in Supabase under Authentication → Providers → Google)
 3. Paste the Client ID and Secret into **Supabase → Authentication → Providers → Google** → Enable.
 4. **Publish** the consent screen so anyone can sign in.
+5. In `app.js`, set `googleSignIn: true` so the "Continue with Google" button appears.
 
 ## 4. Lemon Squeezy payments (30 min + approval time)
 Lemon Squeezy is the merchant of record: it charges customers, handles global VAT/GST and invoices, and pays you out.
