@@ -70,6 +70,8 @@
     .plan.pro { background: #fff; border: 1px solid var(--ink); }
     .plan .price { font: 400 56px/1 var(--display); letter-spacing: -0.02em; margin: 16px 0 8px; }
     .plan .price small { font: 16px var(--text-font); color: var(--muted); }
+    .plan .price s { font-size: 28px; color: var(--muted); margin: 0 6px 0 8px; }
+    .founding { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 6px 14px; border-radius: 30px; background: var(--coral); color: #17171c; font: 12px var(--mono); text-transform: uppercase; letter-spacing: .02em; }
     .plan ul { padding: 0; list-style: none; margin: 24px 0; }
     .plan li { padding: 8px 0; border-top: 1px solid var(--rule); }
     .plan li::before { content: "✓  "; color: var(--ink); }
@@ -115,7 +117,7 @@
         <a class="btn" href="./?mode=signup">Start free</a>
         <a class="btn ghost" href="#features">See what's inside</a>
       </div>
-      <p class="mono fine">30 days of Pro free · No card needed · Works on phone and laptop</p>
+      <p class="mono fine">30 days of Pro free · No card needed · First 100 users $3/mo forever</p>
 
       <div class="demo" role="img" aria-label="The Forge quick capture turning a spoken sentence into a calendar event">
         <svg class="deco" viewBox="0 0 320 320" fill="none" stroke="#fff" aria-hidden="true"><circle cx="160" cy="160" r="40"/><circle cx="160" cy="160" r="80"/><circle cx="160" cy="160" r="120"/><circle cx="160" cy="160" r="158"/><path d="M0 160h320M160 0v320"/></svg>
@@ -161,9 +163,10 @@
           <a class="btn ghost" href="./?mode=signup">Start free</a>
         </div>
         <div class="plan pro">
+          <span class="founding">First 100 users · $3/mo forever</span>
           <p class="mono">Pro · 30 days free</p>
-          <div class="price">$5<small> / month</small></div>
-          <p style="color:var(--muted)">or $48 / year — 2 months free</p>
+          <div class="price">$3<s>$5</s><small> / month</small></div>
+          <p style="color:var(--muted)">Founding price for the first 100 subscribers, locked in forever. Then $5/month, or $48/year.</p>
           <ul><li>Everything in Free</li><li>Sync across all your devices</li><li>Automatic cloud backup</li><li>Cancel any time · 14-day refund</li></ul>
           <a class="btn" href="./?mode=signup">Start 30-day trial</a>
         </div>
@@ -173,6 +176,7 @@
     <section class="faq">
       <div class="section-head"><div><p class="mono">FAQ</p><h2>Questions</h2></div></div>
       <details><summary>Do I need a card for the trial?</summary><p>No. Create an account and you get 30 days of Pro. If you don't subscribe, nothing is charged — syncing just pauses and your data stays on your device.</p></details>
+      <details><summary>What is the founding member price?</summary><p>The first 100 people to subscribe pay $3/month instead of $5 — and keep that price for as long as they stay subscribed. It's applied automatically at checkout.</p></details>
       <details><summary>Is it an app I install?</summary><p>It runs in your browser and installs like an app: on iPhone, Safari → Share → Add to Home Screen; on Android, Chrome → Install app.</p></details>
       <details><summary>Who can see my notes?</summary><p>Only you. Without an account nothing leaves your device. With an account, database rules ensure each account can only read its own data.</p></details>
       <details><summary>Can I cancel or get a refund?</summary><p>Cancel any time from Manage billing. New subscriptions have a 14-day no-questions refund — see the <a href="refund.html">refund policy</a>.</p></details>
@@ -182,7 +186,7 @@
   <footer>
     <div class="wrap">
       <div><p class="coral mono">Built by Lumid</p><p style="font:400 28px/1.1 var(--display);margin:8px 0 0">Stop losing ideas.</p></div>
-      <div><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="refund.html">Refunds</a><a href="mailto:hello@lumid.in">Contact</a></div>
+      <div><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="refund.html">Refunds</a><a href="mailto:info@lumid.in">Contact</a></div>
     </div>
   </footer>
 </body>

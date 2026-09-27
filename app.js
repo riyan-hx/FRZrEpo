@@ -12,11 +12,14 @@ const LABS_KEY = 'lumid-hq-labs';
 const LAUNCH = {
   earlyAccessDays: 30,
   trialDays: 30,
-  feedbackUrl: 'mailto:hello@lumid.in?subject=The%20Forge%20feedback',
+  feedbackUrl: 'mailto:info@lumid.in?subject=The%20Forge%20feedback',
   privacyUrl: 'privacy.html',
   termsUrl: 'terms.html',
   refundUrl: 'refund.html',
   price: { monthly: '$5', yearly: '$48' },
+  // Founding offer: a Lemon Squeezy discount code ($2 off monthly, duration "forever",
+  // limited to 100 redemptions) pre-applied at checkout. Set code to '' to end the offer.
+  founder: { code: 'FOUNDING100', price: '$3', seats: 100 },
   // ↓ Fill these in to switch on accounts, trials and payments (see SETUP.md). Both Supabase
   //   values are public by design — Row Level Security protects the data.
   supabaseUrl: 'https://rbxxtyjcxexknnspgnyv.supabase.co',
@@ -2058,6 +2061,7 @@ function checkoutUrl(period) {
   const base = LAUNCH.checkout[period];
   if (!base || !cloud.user) return '';
   const params = new URLSearchParams({ 'checkout[email]': cloud.user.email || '', 'checkout[custom][user_id]': cloud.user.id });
+  if (period === 'monthly' && LAUNCH.founder.code) params.set('checkout[discount_code]', LAUNCH.founder.code);
   return `${base}${base.includes('?') ? '&' : '?'}${params}`;
 }
 
@@ -2092,14 +2096,18 @@ function openSignIn(reason = '') {
 function openUpgrade() {
   if (!cloud.user) return openSignIn('Create a free account first — then upgrade to Pro any time.');
   const ready = LAUNCH.checkout.monthly || LAUNCH.checkout.yearly;
+  const founder = Boolean(LAUNCH.founder.code);
+  const featured = founder ? 'monthly' : 'yearly';
+  const flags = { monthly: founder ? `First ${LAUNCH.founder.seats} · forever` : '', yearly: '2 months free' };
   const plan = (period, price, per, note) => `
-    <div class="plan-card ${period === 'yearly' ? 'featured' : ''}">
-      ${period === 'yearly' ? '<span class="plan-flag">2 months free</span>' : ''}
-      <div class="plan-price">${price}<small>/${per}</small></div>
+    <div class="plan-card ${period === featured ? 'featured' : ''}">
+      ${flags[period] ? `<span class="plan-flag">${flags[period]}</span>` : ''}
+      <div class="plan-price">${period === 'monthly' && founder ? `${LAUNCH.founder.price}<s>${price}</s>` : price}<small>/${per}</small></div>
       <p class="small muted">${note}</p>
-      ${ready ? `<a class="btn ${period === 'yearly' ? '' : 'ghost'}" href="${esc(checkoutUrl(period))}" target="_blank" rel="noopener">Choose ${period}</a>` : ''}
+      ${ready ? `<a class="btn ${period === featured ? '' : 'ghost'}" href="${esc(checkoutUrl(period))}" target="_blank" rel="noopener">Choose ${period}</a>` : ''}
     </div>`;
   openModal('Upgrade to Pro', `
+    ${founder ? founderNote() : ''}
     <ul class="plan-perks">
       <li>Sync across all your devices</li>
       <li>Automatic cloud backup</li>
@@ -2107,12 +2115,19 @@ function openUpgrade() {
       <li>Support an indie product — cancel any time</li>
     </ul>
     <div class="plan-grid">
-      ${plan('monthly', LAUNCH.price.monthly, 'month', 'Billed monthly')}
+      ${plan('monthly', LAUNCH.price.monthly, 'month', founder ? 'Founding price, locked in for as long as you stay subscribed' : 'Billed monthly')}
       ${plan('yearly', LAUNCH.price.yearly, 'year', 'Billed yearly')}
     </div>
     ${ready ? `<p class="small muted">Secure checkout by Lemon Squeezy. Prices shown in USD; local taxes may apply. After paying, come back here — Pro turns on within a minute. <a href="${LAUNCH.refundUrl}" target="_blank" rel="noopener">Refund policy</a></p>`
       : `<p class="confirm-note">Payments open very soon. You’ll keep full access until then — <a href="${LAUNCH.feedbackUrl}">tell us</a> if you’d like to be first to know.</p>`}`);
 }
+
+function founderNote() {
+  return `<p class="founder-note"><b>Founding member offer</b> — the first ${LAUNCH.founder.seats} people to subscribe pay ${LAUNCH.founder.price}/month forever instead of ${LAUNCH.price.monthly}.</p>`;
+}
+
+// Cheapest monthly price on offer right now, for buttons.
+const monthlyPrice = () => (LAUNCH.founder.code ? LAUNCH.founder.price : LAUNCH.price.monthly);
 
 function manageBillingUrl() {
   return cloud.plan?.portal_url || 'https://app.lemonsqueezy.com/my-orders';
@@ -2579,7 +2594,7 @@ function renderTrial() {
     card.innerHTML = `<span class="label">Free trial</span>
       <strong class="side-trial-days">Ended</strong>
       <p class="small muted">Sync is paused. Everything on this device is safe.</p>
-      <button class="btn sm" data-action="upgrade">Upgrade · ${LAUNCH.price.monthly}/mo</button>`;
+      <button class="btn sm" data-action="upgrade">Upgrade · ${monthlyPrice()}/mo</button>`;
     pill.textContent = 'Trial ended';
     return;
   }
@@ -2589,7 +2604,7 @@ function renderTrial() {
     <strong class="side-trial-days">${days ? `${days} <span>day${days === 1 ? '' : 's'} left</span>` : 'Last day'}</strong>
     <div class="side-trial-bar" role="progressbar" aria-label="Trial used" aria-valuenow="${Math.round(used)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${used}%"></i></div>
     <p class="small muted">Ends ${t.end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · <span class="side-trial-clock">${countdown(t.ms)}</span></p>
-    <button class="btn sm" data-action="upgrade">Upgrade · ${LAUNCH.price.monthly}/mo</button>`;
+    <button class="btn sm" data-action="upgrade">Upgrade · ${monthlyPrice()}/mo</button>`;
   pill.innerHTML = `<i></i>${days ? `${days}d left` : 'Last day'}`;
   pill.setAttribute('aria-label', `Free trial: ${days ? `${days} day${days === 1 ? '' : 's'} left` : 'last day'} — upgrade`);
 }
@@ -2677,6 +2692,7 @@ function authView() {
         <span class="trial-days">${LAUNCH.trialDays}<small>days</small></span>
         <div><strong>Free Pro trial</strong><span>No card needed · Every feature · Cancel anytime</span></div>
       </div>
+      ${LAUNCH.founder.code ? `<p class="founder-line">First ${LAUNCH.founder.seats} members: <b>${LAUNCH.founder.price}/mo forever</b> after the trial</p>` : ''}
       ${google}
       <form data-form="auth-signup" novalidate>
         <div class="field"><label for="auth-name">Your name</label><input type="text" id="auth-name" name="name" autocomplete="name" required></div>

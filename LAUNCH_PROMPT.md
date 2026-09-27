@@ -24,7 +24,7 @@ GROUND RULES
     GitHub repo:        https://github.com/riyan-hx/FRZrEpo   (branch: main)
     Supabase project:   https://rbxxtyjcxexknnspgnyv.supabase.co  (ref: rbxxtyjcxexknnspgnyv)
     Supabase callback:  https://rbxxtyjcxexknnspgnyv.supabase.co/auth/v1/callback
-    App domain:         theforge.lumid.in       Support email: hello@lumid.in
+    App domain:         theforge.lumid.in       Support email: info@lumid.in
     Pricing:            $5/month or $48/year, 30-day free trial with no card
 
 PHASE 1 — GitHub: merge pending work
@@ -72,7 +72,7 @@ Open https://supabase.com/dashboard/project/rbxxtyjcxexknnspgnyv
       then click Verify and wait for "Verified".
    c. Resend → API Keys → create key "the-forge-supabase" (Sending access).
    d. Supabase → Authentication → Emails → SMTP Settings → Enable custom SMTP:
-        Sender email: hello@lumid.in   Sender name: The Forge
+        Sender email: info@lumid.in   Sender name: The Forge
         Host: smtp.resend.com   Port: 465   Username: resend   Password: the Resend API key
       Save. (Copy the key tab-to-tab; don't paste it anywhere else.)
 5. Authentication → Emails → Templates:
@@ -88,7 +88,7 @@ Google Cloud Console → Google Auth Platform (project that contains the OAuth c
    Authorized JavaScript origins: https://theforge.lumid.in  and the .vercel.app URL.
    Authorized redirect URIs: https://rbxxtyjcxexknnspgnyv.supabase.co/auth/v1/callback
    Save. Copy the Client ID and Client secret (tab-to-tab only).
-2. Branding: App name "The Forge", support email hello@lumid.in (or my email), app logo optional,
+2. Branding: App name "The Forge", support email info@lumid.in (or my email), app logo optional,
    Home page https://theforge.lumid.in, Privacy https://theforge.lumid.in/privacy.html,
    Terms https://theforge.lumid.in/terms.html, Authorized domain lumid.in. Save.
 3. Audience: User type External → Publish app (status "In production").
@@ -97,7 +97,7 @@ Google Cloud Console → Google Auth Platform (project that contains the OAuth c
 
 PHASE 6 — End-to-end test (use a private/incognito window)
 1. Open https://theforge.lumid.in → Create account with a new email I own (ask me which) →
-   confirm the email arrives from hello@lumid.in → click it → sign in.
+   confirm the email arrives from info@lumid.in → click it → sign in.
 2. Confirm the "What are you working on?" setup appears, finish it, add one task.
 3. Supabase Table Editor: `subscriptions` has a row for this user with status `trialing` and a
    trial end ~30 days away; `hq_state` has a row with data.
@@ -109,7 +109,7 @@ Report any error messages exactly.
 
 PHASE 7 — Payments with Lemon Squeezy (ask me before submitting identity/bank details)
 1. https://app.lemonsqueezy.com → create store "Lumid" (or use existing). Settings → General:
-   store URL, support email hello@lumid.in. Start store activation / identity verification and
+   store URL, support email info@lumid.in. Start store activation / identity verification and
    PAUSE for me to complete personal details.
 2. Products → New product "The Forge Pro", pricing type Subscription, two variants:
      Monthly — $5.00 every 1 month
@@ -117,6 +117,11 @@ PHASE 7 — Payments with Lemon Squeezy (ask me before submitting identity/bank 
    For each variant: Confirmation modal/redirect → Button link: https://theforge.lumid.in/#settings
    Publish.
 3. For each variant: Share → copy the Checkout link (looks like https://lumid.lemonsqueezy.com/buy/...).
+3b. Founding offer: Store → Discounts → New discount:
+     Name "Founding 100", Code FOUNDING100 (exactly), Amount type Fixed, $2.00 off,
+     Limit to product/variant: The Forge Pro → Monthly only,
+     Duration: Forever (applies to every renewal), Limit total redemptions: 100. Save.
+     The app pre-fills this code on the monthly checkout, so the first 100 pay $3/month forever.
 4. Supabase → Edge Functions → Deploy a new function → Via Editor:
      a. Name: lemonsqueezy-webhook. Paste the code from
         https://github.com/riyan-hx/FRZrEpo/blob/main/supabase/functions/lemonsqueezy-webhook/index.ts
