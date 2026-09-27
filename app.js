@@ -1792,7 +1792,7 @@ function cloudCard() {
 // The key is stored only on this device (never synced) and sent only to the chosen provider.
 const AI_KEY = 'lumid-hq-ai';
 const AI_PROVIDERS = {
-  gemini: { label: 'Google Gemini', model: 'gemini-2.5-flash', keyUrl: 'https://aistudio.google.com/apikey', audio: true },
+  gemini: { label: 'Google Gemini', model: 'gemini-3.8-flash', keyUrl: 'https://aistudio.google.com/apikey', audio: true },
   groq: { label: 'Groq', model: 'llama-3.3-70b-versatile', keyUrl: 'https://console.groq.com/keys', audio: true },
   openrouter: { label: 'OpenRouter (free models)', model: 'meta-llama/llama-3.3-70b-instruct:free', keyUrl: 'https://openrouter.ai/keys', audio: false },
 };
@@ -1850,16 +1850,43 @@ const blobToBase64 = (blob) => new Promise((resolve, reject) => {
   r.readAsDataURL(blob);
 });
 
+// Picks a working Gemini model after a "model unavailable" error: the one the error
+// recommends, otherwise the newest Flash model this key can use.
+async function geminiReplacementModel(message) {
+  if (!/no longer available|not found|deprecated|not supported|update your code/i.test(message)) return '';
+  const suggested = message.match(/use (?:models\/)?(gemini-[\w.-]*\w)/i);
+  if (suggested) return suggested[1];
+  try {
+    const data = await aiFetchJson('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': ai.cfg.key } });
+    const flash = (data.models || [])
+      .filter((m) => /^models\/gemini-[\d.]+-flash$/.test(m.name) && (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map((m) => m.name.replace('models/', ''))
+      .sort((a, b) => parseFloat(b.slice(7)) - parseFloat(a.slice(7)));
+    return flash[0] || '';
+  } catch { return ''; }
+}
+
 async function aiGenerate(prompt, audio) {
   const { provider, key } = ai.cfg;
   if (provider === 'gemini') {
     const parts = [{ text: prompt }];
     if (audio) parts.unshift({ inline_data: { mime_type: audio.type.split(';')[0] || 'audio/webm', data: await blobToBase64(audio) } });
-    const data = await aiFetchJson(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(ai.model)}:generateContent`, {
+    const call = (model) => aiFetchJson(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify({ contents: [{ parts }], generationConfig: { temperature: 0.2, responseMimeType: 'application/json' } }),
     });
+    let data;
+    try {
+      data = await call(ai.model);
+    } catch (err) {
+      // Google retires models regularly; switch to a current one and retry once.
+      const next = await geminiReplacementModel(err.message);
+      if (!next || next === ai.model) throw err;
+      data = await call(next);
+      ai.cfg.model = next;
+      ai.save();
+    }
     return data.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
   }
   const base = provider === 'groq' ? 'https://api.groq.com/openai/v1' : 'https://openrouter.ai/api/v1';

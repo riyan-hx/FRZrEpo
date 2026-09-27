@@ -1,4 +1,4 @@
-const CACHE = 'lumid-hq-v11';
+const CACHE = 'lumid-hq-v12';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.json', 'icon.svg'];
 
 self.addEventListener('install', (e) => {
