@@ -23,7 +23,7 @@ const LAUNCH = {
   supabaseKey: 'sb_publishable_FQC75Lv6PjGtqBHiFV4vxw_JWCQEtaa',
   // Google OAuth Client ID (public, ends in .apps.googleusercontent.com). When set, Google's own
   // button signs in on this domain, so the chooser never shows supabase.co.
-  googleClientId: '',
+  googleClientId: '590294640036-pj15cv173brdavm53nrmubl0gj68b68b.apps.googleusercontent.com',
   checkout: { monthly: '', yearly: '' }, // Lemon Squeezy checkout links (Share → Checkout link)
   analyticsToken: '', // Cloudflare Web Analytics token (optional)
   sentryLoader: '', // Sentry "Loader Script" URL, e.g. https://js.sentry-cdn.com/<key>.min.js (optional)
