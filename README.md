@@ -8,7 +8,7 @@ CEO command center for **Lumid AI** and **Lumid Studio** — capture ideas, turn
 - **Tasks** — priorities, due dates, owners, grouped by overdue / today / this week
 - **Notes** — searchable, pinnable notes
 - **Schedule** — Month / Week / Deadlines views, a written plan for each day, quick-add tasks to any day, deadline countdowns, `.ics` export to Google/Apple Calendar
-- **Resources** — paste reels, YouTube videos, podcasts or articles; watch list → reference → watched, with takeaways notes. On Android, share a link straight into the installed app
+- **Resources** — paste reels, YouTube videos, podcasts or articles; watch list → reference → watched, with takeaways notes. On Android, share a link straight into the installed app. Organise links into collections (e.g. Instagram reels, Claude videos) and search across all of them
 - **Goals** — OKRs with key-result progress sliders
 - **KPIs** — log metrics over time with sparklines, deltas and targets
 - **Decisions** — decision log with review dates

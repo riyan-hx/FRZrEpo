@@ -65,6 +65,7 @@ const ICONS = {
   stop: '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>',
   moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
@@ -97,7 +98,7 @@ const hydrateIcons = (root = document) => $$('[data-icon]', root).forEach((el) =
 /* ---------- Data ---------- */
 const emptyDb = () => ({
   ventures: ['Lumid AI', 'Lumid Studio', 'General'],
-  ideas: [], tasks: [], notes: [], events: [], goals: [], metrics: [], decisions: [], people: [], resources: [],
+  ideas: [], tasks: [], notes: [], events: [], goals: [], metrics: [], decisions: [], people: [], resources: [], collections: [],
   plans: {},
 });
 
@@ -159,7 +160,7 @@ const store = {
 };
 
 let db = store.load();
-const state = { view: 'today', venture: 'All', calMonth: today().slice(0, 7), calDay: today(), calMode: 'month', metricRange: '6m', notesQuery: '', tasksTab: 'open', resTab: 'watch', resQuery: '' };
+const state = { view: 'today', venture: 'All', calMonth: today().slice(0, 7), calDay: today(), calMode: 'month', metricRange: '6m', notesQuery: '', tasksTab: 'open', resTab: 'watch', resQuery: '', resCollection: 'all' };
 
 const ventureColor = (v) => VENTURE_COLORS[Math.max(0, db.ventures.indexOf(v)) % VENTURE_COLORS.length];
 const ventureBadge = (v) => v ? `<span class="badge" style="--c:${ventureColor(v)}"><span class="dot"></span>${esc(v)}</span>` : '';
@@ -227,6 +228,7 @@ const SCHEMAS = {
     label: 'Resource', fields: [
       { k: 'url', label: 'Link', type: 'url', req: true, ph: 'https://…' },
       { k: 'title', label: 'Title', type: 'text', ph: 'What is it about?' },
+      { k: 'collectionId', label: 'Collection', type: 'collection' },
       { row: [{ k: 'status', label: 'Status', type: 'select', options: RES_STATUS, def: 'watch' }, { k: 'venture', label: 'Venture', type: 'venture' }] },
       { k: 'notes', label: 'Key takeaways', type: 'textarea', ph: 'Why it matters, what to apply…' },
     ],
@@ -1158,34 +1160,110 @@ function resourceCard(r) {
       <span class="thumb-tag">${p.label}</span>
     </a>
     <div class="item-main" data-edit="resources:${r.id}">
-      <div class="idea-title clip2">${esc(r.title)}</div>
+      <div class="idea-title clip2">${highlight(r.title)}</div>
       <div class="small muted">${esc(r.author || hostOf(r.url))}</div>
-      ${r.notes ? `<div class="clip small muted" style="margin-top:4px">${esc(r.notes)}</div>` : ''}
+      ${r.notes ? `<div class="clip small muted" style="margin-top:4px">${highlight(r.notes)}</div>` : ''}
     </div>
-    <div class="row" style="margin-top:8px">
-      ${ventureBadge(r.venture)}<span class="spacer"></span>
+    <div class="row" style="margin-top:8px">${ventureBadge(r.venture)}</div>
+    <div class="row res-actions">
+      ${collectionSelect('', r.collectionId, '', `class="res-move" data-res-move="${r.id}" aria-label="Move to collection"`)}
       <button class="btn sm ${done ? 'ghost' : ''}" data-res-done="${r.id}">${done ? 'Watched ✓' : 'Mark watched'}</button>
     </div>
   </div>`;
 }
 
+const findCollection = (id) => db.collections.find((c) => c.id === id);
+const currentCollectionId = () => (findCollection(state.resCollection) ? state.resCollection : '');
+
+function collectionSelect(name, value, id = '', attrs = '') {
+  return `<select ${name ? `name="${name}"` : ''} ${id ? `id="${id}"` : ''} ${attrs}>
+    <option value="">No collection</option>
+    ${db.collections.map((c) => `<option value="${c.id}" ${c.id === value ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
+  </select>`;
+}
+
+// Escapes text and marks the current resource search term.
+function highlight(text) {
+  const q = state.resQuery.trim();
+  const safe = esc(text);
+  if (!q) return safe;
+  const pattern = new RegExp(esc(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+  return safe.replace(pattern, (m) => `<mark>${m}</mark>`);
+}
+
+function resourceMatches(r, q) {
+  const folder = findCollection(r.collectionId)?.name || '';
+  return [r.title, r.notes, r.url, r.author, folder, (PLATFORMS[r.platform] || PLATFORMS.link).label].join(' ').toLowerCase().includes(q);
+}
+
+function folderTile(key, name, items, active) {
+  const emojis = [...new Set(items.map((r) => (PLATFORMS[r.platform] || PLATFORMS.link).emoji))].slice(0, 3).join(' ');
+  return `<button class="folder ${active ? 'active' : ''}" data-col-open="${key}">
+    <span class="folder-icon">${icon('folder')}</span>
+    <span class="folder-name">${esc(name)}</span>
+    <span class="folder-meta">${items.length} item${items.length === 1 ? '' : 's'}${emojis ? ` · ${emojis}` : ''}</span>
+  </button>`;
+}
+
 function viewResources() {
-  const q = state.resQuery.toLowerCase();
+  const q = state.resQuery.trim().toLowerCase();
   const all = byVenture(db.resources);
+  if (state.resCollection !== 'all' && state.resCollection !== 'unsorted' && !findCollection(state.resCollection)) state.resCollection = 'all';
+  const open = state.resCollection;
+  const inFolder = (r) => open === 'all' || (open === 'unsorted' ? !findCollection(r.collectionId) : r.collectionId === open);
   const tab = state.resTab;
-  const list = all
-    .filter((r) => tab === 'all' || r.status === tab)
-    .filter((r) => !q || [r.title, r.notes, r.url, r.author].join(' ').toLowerCase().includes(q))
-    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  const count = (k) => all.filter((r) => k === 'all' || r.status === k).length;
-  const seg = `<div class="seg">${[...RES_STATUS, ['all', 'All']].map(([k, l]) => `<button class="${tab === k ? 'active' : ''}" data-res-tab="${k}">${l} <span class="muted">${count(k)}</span></button>`).join('')}</div>`;
-  return `<form class="capture section" data-form="res-add">
+  const byNewest = (a, b) => (b.createdAt || 0) - (a.createdAt || 0);
+
+  const search = `<div class="res-search">${icon('search')}<input type="search" data-res-search placeholder="Search all resources — titles, notes, collections…" value="${esc(state.resQuery)}" aria-label="Search resources"></div>`;
+  const add = `<form class="capture section" data-form="res-add">
       <input type="text" name="url" placeholder="Paste a reel, YouTube or article link…" autocomplete="off" inputmode="url" aria-label="Paste link" required>
+      ${db.collections.length ? collectionSelect('collectionId', currentCollectionId(), '', 'class="res-add-col" aria-label="Save to collection"') : ''}
       <button class="btn" type="submit">Save</button>
-    </form>
-    <div class="toolbar">${seg}<input type="search" data-res-search placeholder="Search resources…" value="${esc(state.resQuery)}" aria-label="Search resources"></div>
+    </form>`;
+
+  if (q) {
+    const hits = all.filter((r) => resourceMatches(r, q)).sort(byNewest);
+    return `${search}
+      <p class="section-title">${hits.length} result${hits.length === 1 ? '' : 's'} across all collections</p>
+      ${hits.length ? `<div class="grid cards">${hits.map(resourceCard).join('')}</div>` : empty('No matches', 'Try another word from the title, your notes or a collection name.')}`;
+  }
+
+  const folderItems = all.filter(inFolder);
+  const list = folderItems.filter((r) => tab === 'all' || r.status === tab).sort(byNewest);
+  const count = (k) => folderItems.filter((r) => k === 'all' || r.status === k).length;
+  const seg = `<div class="seg">${[...RES_STATUS, ['all', 'All']].map(([k, l]) => `<button class="${tab === k ? 'active' : ''}" data-res-tab="${k}">${l} <span class="muted">${count(k)}</span></button>`).join('')}</div>`;
+  const unsorted = all.filter((r) => !findCollection(r.collectionId));
+  const folder = findCollection(open);
+  const heading = folder
+    ? `<div class="folder-head"><button class="icon-btn bare" data-col-open="all" aria-label="All resources">${icon('left')}</button>
+        <h3>${esc(folder.name)}</h3><span class="spacer"></span>
+        <button class="btn sm ghost" data-action="col-rename">Rename</button>
+        <button class="btn sm danger" data-action="col-delete">Delete</button></div>`
+    : '';
+
+  return `${search}${add}
+    <div class="section">
+      <div class="row folder-bar"><p class="section-title">Collections</p><span class="spacer"></span><button class="btn sm ghost" data-action="col-new">${icon('plus')} New collection</button></div>
+      <div class="folders">
+        ${folderTile('all', 'All', all, open === 'all')}
+        ${db.collections.map((c) => folderTile(c.id, c.name, all.filter((r) => r.collectionId === c.id), open === c.id)).join('')}
+        ${db.collections.length ? folderTile('unsorted', 'Unsorted', unsorted, open === 'unsorted') : ''}
+      </div>
+    </div>
+    ${heading}
+    <div class="toolbar">${seg}</div>
     ${list.length ? `<div class="grid cards">${list.map(resourceCard).join('')}</div>`
-      : empty(q ? 'No matching resources' : 'Nothing here yet', 'Paste links to reels, YouTube videos, podcasts or articles to watch later. Tip: on Android, share straight to Lumid HQ once installed.')}`;
+      : empty(folder ? 'This collection is empty' : 'Nothing here yet', folder ? 'Save a link while this collection is open, or move items here from their card.' : 'Paste links to reels, YouTube videos, podcasts or articles to watch later.')}`;
+}
+
+function openCollectionForm(id) {
+  const c = id ? findCollection(id) : null;
+  openModal(c ? 'Rename collection' : 'New collection', `
+    <form id="col-form" data-form="col-form" data-id="${c ? c.id : ''}">
+      <div class="field"><label for="col-name">Name</label>
+        <input type="text" id="col-name" name="name" value="${esc(c?.name || '')}" placeholder="Instagram reels, Claude videos…" required autocomplete="off" autofocus></div>
+    </form>`,
+    `<button class="btn ghost" type="button" data-action="close">Cancel</button><span class="spacer"></span><button class="btn" type="submit" form="col-form">${c ? 'Save' : 'Create'}</button>`);
 }
 
 /* ---------- View: Settings ---------- */
@@ -1257,6 +1335,8 @@ function fieldHTML(f, item) {
       input = `<textarea id="${id}" name="${f.k}" ${ph} class="${f.tall ? 'tall' : ''}">${esc(raw)}</textarea>`; break;
     case 'krs':
       input = `<textarea id="${id}" name="${f.k}" ${ph}>${esc((raw || []).map((k) => k.text).join('\n'))}</textarea>`; break;
+    case 'collection':
+      input = collectionSelect(f.k, item.id ? item.collectionId : currentCollectionId(), id); break;
     case 'venture':
       input = `<select id="${id}" name="${f.k}">${db.ventures.map((v) => `<option ${v === (raw || (state.venture !== 'All' ? state.venture : db.ventures[0])) ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>`; break;
     case 'select':
@@ -1433,6 +1513,16 @@ const ACTIONS = {
   },
   'cloud-sync': () => cloud.pull(),
   voice: toggleVoice,
+  'col-new': () => openCollectionForm(),
+  'col-rename': () => openCollectionForm(state.resCollection),
+  'col-delete': () => {
+    const c = findCollection(state.resCollection);
+    if (!c || !confirm(`Delete “${c.name}”? Its items stay in Resources as unsorted.`)) return;
+    db.collections = db.collections.filter((x) => x.id !== c.id);
+    db.resources.forEach((r) => { if (r.collectionId === c.id) r.collectionId = ''; });
+    state.resCollection = 'all';
+    store.save(); render(); toast('Collection deleted');
+  },
   'ai-test': async (el) => {
     el.disabled = true;
     try {
@@ -1450,7 +1540,7 @@ const ACTIONS = {
 };
 
 document.addEventListener('click', (e) => {
-  const el = e.target.closest('[data-action],[data-nav],[data-venture],[data-edit],[data-day],[data-month],[data-log],[data-tasks-tab],[data-cal-mode],[data-week],[data-add-day],[data-res-tab],[data-res-done],[data-cap-type],[data-cap-token]');
+  const el = e.target.closest('[data-action],[data-nav],[data-venture],[data-edit],[data-day],[data-month],[data-log],[data-tasks-tab],[data-cal-mode],[data-week],[data-add-day],[data-res-tab],[data-res-done],[data-col-open],[data-cap-type],[data-cap-token]');
   if (!el || e.target.closest('select, input[type=checkbox], input[type=range]')) return;
   const d = el.dataset;
   if (d.action) return ACTIONS[d.action]?.(el);
@@ -1464,6 +1554,7 @@ document.addEventListener('click', (e) => {
   if (d.week) { state.calDay = addDays(state.calDay, 7 * Number(d.week)); state.calMonth = state.calDay.slice(0, 7); return render(); }
   if (d.addDay) { state.calDay = d.addDay; return openEditor('events'); }
   if (d.resTab) { state.resTab = d.resTab; return render(); }
+  if (d.colOpen) { state.resCollection = d.colOpen; return render(); }
   if (d.resDone) {
     const r = find('resources', d.resDone);
     if (r) { r.status = r.status === 'done' ? 'watch' : 'done'; store.save(); render(); }
@@ -1500,6 +1591,12 @@ document.addEventListener('change', (e) => {
   } else if (el.matches('[data-metric-range]')) {
     state.metricRange = el.value;
     render();
+  } else if (el.dataset.resMove) {
+    const r = find('resources', el.dataset.resMove);
+    if (!r) return;
+    r.collectionId = el.value;
+    store.save(); render();
+    toast(el.value ? `Moved to ${findCollection(el.value).name}` : 'Removed from collection');
   } else if (el.dataset.stage) {
     const i = find('ideas', el.dataset.stage);
     if (i) { i.stage = el.value; store.save(); render(); }
@@ -1551,8 +1648,27 @@ document.addEventListener('submit', (e) => {
       break;
     }
     case 'editor': saveEditor(form); break;
+    case 'col-form': {
+      const name = form.elements.name.value.trim();
+      if (!name) break;
+      const existing = findCollection(form.dataset.id);
+      if (existing) existing.name = name;
+      else {
+        const c = { id: uid(), name, createdAt: Date.now() };
+        db.collections.push(c);
+        state.resCollection = c.id;
+      }
+      store.save(); closeModal(); render();
+      toast(existing ? 'Collection renamed' : `Created “${name}”`);
+      break;
+    }
     case 'res-add': {
-      if (addResource(form.elements.url.value)) { form.reset(); state.resTab = 'watch'; render(); toast('Saved to watch list'); }
+      const collectionId = form.elements.collectionId?.value || '';
+      if (addResource(form.elements.url.value, '', { collectionId })) {
+        state.resTab = 'watch';
+        render();
+        toast(collectionId ? `Saved to ${findCollection(collectionId).name}` : 'Saved to watch list');
+      }
       break;
     }
     case 'day-add': {

@@ -538,3 +538,34 @@ input.missing { border-color: var(--coral); background: color-mix(in srgb, var(-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Resource collections & search ---------- */
+.res-search { position: relative; margin-bottom: 16px; }
+.res-search svg.i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.res-search input[type="search"] { padding-left: 48px; min-height: 52px; border-radius: var(--r-pill); font-size: 16px; }
+.res-add-col { width: auto; max-width: 40%; flex: none; }
+.folder-bar { margin-bottom: 12px; }
+.folder-bar .section-title { margin: 0; }
+.folders { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.folder {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0;
+  padding: 16px; border-radius: var(--r-md); border: 1px solid transparent;
+  background: var(--stone); color: var(--text); text-align: left;
+}
+.folder:hover { border-color: var(--text); }
+.folder.active { background: var(--primary); color: var(--on-primary); }
+.folder-icon { display: grid; margin-bottom: 8px; }
+.folder-name { font-size: 16px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-meta { font: 12px var(--font-mono); text-transform: uppercase; opacity: .7; }
+.folder-head { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.folder-head h3 { font: 400 28px/1.1 var(--font-display); letter-spacing: -0.01em; }
+.res-actions { margin-top: 8px; flex-wrap: nowrap; }
+.res-move { flex: 1; min-width: 0; width: auto; padding-top: 6px; padding-bottom: 6px; font-size: 13px; border-radius: var(--r-xl); }
+mark { background: color-mix(in srgb, var(--coral) 30%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
+@media (max-width: 900px) {
+  .folders { display: flex; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+  .folders::-webkit-scrollbar { display: none; }
+  .folder { flex: 0 0 148px; }
+  .folder-head h3 { font-size: 24px; }
+  .res-add-col { max-width: 36%; font-size: 14px; }
+}
