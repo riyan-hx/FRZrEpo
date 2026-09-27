@@ -1,4 +1,4 @@
-const CACHE = 'the-forge-v27';
+const CACHE = 'the-forge-v28';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.json', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'privacy.html', 'terms.html', 'refund.html'];
 
 self.addEventListener('install', (e) => {
