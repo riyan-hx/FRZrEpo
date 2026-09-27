@@ -11,7 +11,7 @@ const LABS_KEY = 'lumid-hq-labs';
 // kept on for anyone who already set them up or opens the app with ?labs=1.
 const LAUNCH = {
   earlyAccessDays: 30,
-  trialDays: 30,
+  trialDays: 14,
   feedbackUrl: 'mailto:info@lumid.in?subject=The%20Forge%20feedback',
   privacyUrl: 'privacy.html',
   termsUrl: 'terms.html',

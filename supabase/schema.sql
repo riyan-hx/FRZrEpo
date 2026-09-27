@@ -11,7 +11,7 @@ create table if not exists public.hq_state (
 );
 
 -- ---------------------------------------------------------------------------
--- Plans. Every new account gets a 30-day trial automatically. Only the
+-- Plans. Every new account gets a 14-day trial automatically. Only the
 -- payment webhook (service role) changes a row after that — users can read
 -- their own row but never write it.
 -- status: trialing (our free trial) or a Lemon Squeezy subscription status:
@@ -20,7 +20,7 @@ create table if not exists public.hq_state (
 create table if not exists public.subscriptions (
   user_id            uuid primary key references auth.users (id) on delete cascade,
   status             text not null default 'trialing',
-  trial_ends_at      timestamptz not null default (now() + interval '30 days'),
+  trial_ends_at      timestamptz not null default (now() + interval '14 days'),
   current_period_end timestamptz,
   provider           text,
   customer_id        text,
@@ -62,6 +62,9 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Keeps the trial length right on databases created with an older version of this script.
+alter table public.subscriptions alter column trial_ends_at set default (now() + interval '14 days');
 
 -- Accounts created before this script ran also get a trial.
 insert into public.subscriptions (user_id) select id from auth.users on conflict (user_id) do nothing;

@@ -25,7 +25,7 @@ GROUND RULES
     Supabase project:   https://rbxxtyjcxexknnspgnyv.supabase.co  (ref: rbxxtyjcxexknnspgnyv)
     Supabase callback:  https://rbxxtyjcxexknnspgnyv.supabase.co/auth/v1/callback
     App domain:         theforge.lumid.in       Support email: info@lumid.in
-    Pricing:            $5/month or $48/year, 30-day free trial with no card
+    Pricing:            $5/month or $48/year, 14-day free trial with no card
 
 PHASE 1 — GitHub: merge pending work
 1. Open https://github.com/riyan-hx/FRZrEpo/pulls. Merge every open pull request whose branch is
@@ -100,7 +100,7 @@ PHASE 6 — End-to-end test (use a private/incognito window)
    confirm the email arrives from info@lumid.in → click it → sign in.
 2. Confirm the "What are you working on?" setup appears, finish it, add one task.
 3. Supabase Table Editor: `subscriptions` has a row for this user with status `trialing` and a
-   trial end ~30 days away; `hq_state` has a row with data.
+   trial end ~14 days away; `hq_state` has a row with data.
 4. Sign out, sign in with "Continue with Google" using my Google account, confirm it works.
 5. "Forgot password?" → confirm the reset email arrives and the link opens "Set a new password".
 6. Open the site on a narrow window (≈390px wide) and confirm the sign-up screen fits with no
