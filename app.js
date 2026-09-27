@@ -2790,6 +2790,9 @@ function hideAuth() {
 }
 
 function authError(message) {
+  // Supabase's raw rate-limit messages mean "too many emails or attempts right now".
+  if (/email rate limit/i.test(message)) message = 'We’re sending a lot of sign-up emails right now. Please try again in a few minutes — or use Continue with Google.';
+  else if (/rate limit|too many requests/i.test(message)) message = 'Too many attempts — please wait a minute and try again.';
   const el = $('#auth-error');
   if (el) { el.textContent = message; el.hidden = !message; }
 }
