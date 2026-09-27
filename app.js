@@ -21,7 +21,6 @@ const LAUNCH = {
   //   values are public by design — Row Level Security protects the data.
   supabaseUrl: 'https://rbxxtyjcxexknnspgnyv.supabase.co',
   supabaseKey: 'sb_publishable_FQC75Lv6PjGtqBHiFV4vxw_JWCQEtaa',
-  googleSignIn: false, // set to true once Google is enabled in Supabase (SETUP.md §3)
   checkout: { monthly: '', yearly: '' }, // Lemon Squeezy checkout links (Share → Checkout link)
   analyticsToken: '', // Cloudflare Web Analytics token (optional)
   sentryLoader: '', // Sentry "Loader Script" URL, e.g. https://js.sentry-cdn.com/<key>.min.js (optional)
@@ -1853,6 +1852,7 @@ const cloud = {
       const { createClient } = await import(SUPABASE_JS);
       const { url, key } = this.endpoint;
       this.recovering = /type=recovery/.test(location.hash);
+      this.detectProviders(url, key);
       this.client = createClient(url, key, { auth: { persistSession: true, storageKey: 'lumid-hq-auth', detectSessionInUrl: true } });
       this.client.auth.onAuthStateChange((event, session) => {
         this.user = session?.user || null;
@@ -1877,6 +1877,16 @@ const cloud = {
 
   // A sign-in that just completed (Google or email link) makes the cloud copy win;
   // this device's data is kept as a local backup. Returning sessions just sync.
+  // "Continue with Google" appears automatically once Google is enabled in Supabase.
+  async detectProviders(url, key) {
+    try {
+      const res = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } });
+      const settings = await res.json();
+      this.google = Boolean(settings.external?.google);
+    } catch { this.google = false; }
+    if (this.google && !$('#auth').hidden && ['signup', 'signin'].includes(authState.mode)) showAuth(authState.mode, authState.notice);
+  },
+
   afterSignIn() {
     if (!this.pendingAfter) this.pendingAfter = this.runAfterSignIn();
     return this.pendingAfter;
@@ -2052,7 +2062,7 @@ function openSignIn(reason = '') {
   if (!cloud.client) return toast(navigator.onLine ? 'Accounts are loading — try again in a moment' : 'You’re offline');
   openModal('Sign in to Lumid HQ', `
     <p class="welcome-lead">${reason || `Sync your ideas, tasks and plans across phone and laptop. New accounts get ${LAUNCH.trialDays} days of Pro free — no card needed.`}</p>
-    ${LAUNCH.googleSignIn ? `<button class="btn google-btn" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button>
+    ${cloud.google ? `<button class="btn google-btn" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button>
     <div class="or-rule"><span>or</span></div>` : ''}
     <form id="signin-form" data-form="signin-email">
       <div class="field"><label for="signin-email">Email</label>
@@ -2550,7 +2560,7 @@ function authError(message) {
 
 function authView() {
   const { mode, email, notice } = authState;
-  const google = LAUNCH.googleSignIn ? `<button class="btn google-btn" type="button" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button><div class="or-rule"><span>or</span></div>` : '';
+  const google = cloud.google ? `<button class="btn google-btn" type="button" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button><div class="or-rule"><span>or</span></div>` : '';
   const legal = `<p class="small muted auth-legal">By continuing you agree to the <a href="${LAUNCH.termsUrl}" target="_blank" rel="noopener">Terms</a> and <a href="${LAUNCH.privacyUrl}" target="_blank" rel="noopener">Privacy Policy</a>.</p>`;
   const switcher = (text, to, label) => `<p class="small auth-switch">${text} <button type="button" class="link-btn" data-action="auth-mode" data-mode="${to}">${label}</button></p>`;
   const error = `<p class="auth-error" id="auth-error" role="alert" hidden></p>`;
@@ -2558,7 +2568,11 @@ function authView() {
     loading: () => `<div class="auth-loading"><span class="spinner dark"></span></div>`,
     offline: () => `<h2>You’re offline</h2><p class="auth-sub">Connect to the internet to sign in. Once you’re signed in, Lumid HQ works offline.</p>
       <button class="btn" type="button" data-action="auth-retry">Try again</button>`,
-    signup: () => `<h2>Create your account</h2><p class="auth-sub">${LAUNCH.trialDays} days of Pro free. No card needed.</p>
+    signup: () => `<h2>Create your account</h2><p class="auth-sub">Start with full access — nothing to pay today.</p>
+      <div class="trial-card">
+        <span class="trial-days">${LAUNCH.trialDays}<small>days</small></span>
+        <div><strong>Free Pro trial</strong><span>No card needed · Every feature · Cancel anytime</span></div>
+      </div>
       ${google}
       <form data-form="auth-signup" novalidate>
         <div class="field"><label for="auth-name">Your name</label><input type="text" id="auth-name" name="name" autocomplete="name" required></div>
@@ -2600,6 +2614,7 @@ function authView() {
   };
   return `<div class="auth-panel">
       <div class="auth-brand"><img src="icon.svg" alt="" width="40" height="40"><div><strong>Lumid HQ</strong><small>by Lumid</small></div></div>
+      <span class="trial-badge">${LAUNCH.trialDays}-day free trial · No card</span>
       <h1>Run everything you’re building from one screen.</h1>
       <ul><li>Capture ideas by voice or text</li><li>Plan your day, track every deadline</li><li>Save reels and videos into searchable collections</li></ul>
     </div>
