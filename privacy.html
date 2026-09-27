@@ -21,23 +21,39 @@
     <h1>Privacy</h1>
     <p class="muted">Lumid HQ by Lumid · Last updated September 2026</p>
 
-    <h2>Your data stays on your device</h2>
-    <p>Everything you add to Lumid HQ — ideas, tasks, notes, plans, contacts and saved links — is stored in your browser on this device. We don't run servers that receive or store your content, and we don't sell or share your data.</p>
+    <h2>The short version</h2>
+    <p>Your notes are yours. Without an account, everything stays in your browser on your device. With an account, we store a copy so it can sync between your devices. We never sell your data or use it for advertising.</p>
 
-    <h2>Backups</h2>
-    <p>Because data lives in your browser, clearing site data or switching browsers removes it. Use <b>Settings → Export JSON</b> to keep a backup and <b>Import</b> to restore it on another device.</p>
-
-    <h2>Services the app contacts</h2>
+    <h2>What we store</h2>
     <ul>
-      <li><b>GitHub Pages</b> hosts the app files.</li>
-      <li><b>Google Fonts</b> serves the typefaces.</li>
-      <li><b>noembed.com</b> is asked for the title of links you save to Resources, and <b>YouTube</b> serves video thumbnails.</li>
-      <li><b>Voice capture</b> uses your browser's built-in speech recognition, which may be processed by your browser vendor (for example Google or Apple).</li>
+      <li><b>On your device:</b> everything you add — ideas, tasks, notes, plans, contacts and saved links — in your browser's storage.</li>
+      <li><b>If you create an account:</b> your email address, a synced copy of your data, and your plan status (trial or subscription). This is stored with Supabase, our database provider.</li>
+      <li><b>If you subscribe:</b> payment is handled by Lemon Squeezy, our merchant of record. We never see or store your card details; we receive your subscription status and a link to manage billing.</li>
     </ul>
 
-    <h2>Contact</h2>
-    <p>Questions or requests: <a href="mailto:hello@lumid.in">hello@lumid.in</a></p>
+    <h2>Services we use</h2>
+    <ul>
+      <li><b>Supabase</b> — accounts and synced data.</li>
+      <li><b>Lemon Squeezy</b> — checkout, billing, invoices and sales tax.</li>
+      <li><b>Google</b> — if you choose "Continue with Google", and for fonts.</li>
+      <li><b>Cloudflare</b> — hosting and privacy-friendly page analytics (no cookies, no personal profiles).</li>
+      <li><b>Sentry</b> — crash reports to fix bugs (no note contents).</li>
+      <li><b>noembed.com and YouTube</b> — titles and thumbnails for links you save.</li>
+      <li><b>Voice capture</b> uses your browser's built-in speech recognition, which may be processed by your browser vendor.</li>
+    </ul>
 
+    <h2>Your rights</h2>
+    <ul>
+      <li><b>Export:</b> Settings → Export JSON downloads everything at any time.</li>
+      <li><b>Delete:</b> Settings → Account → Delete account permanently removes your account and synced data, and cancels any subscription. Data on your device stays until you clear it.</li>
+      <li>You can also ask us to access, correct or delete your data by email.</li>
+    </ul>
+
+    <h2>Security</h2>
+    <p>Data is encrypted in transit (HTTPS). Database rules ensure each account can only read and write its own data.</p>
+
+    <h2>Contact</h2>
+    <p><a href="mailto:hello@lumid.in">hello@lumid.in</a></p>
     <p><a href="./">← Back to Lumid HQ</a></p>
   </main>
 </body>

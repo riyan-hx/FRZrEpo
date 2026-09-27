@@ -9,7 +9,22 @@ const META_KEY = 'lumid-hq-meta';
 const LABS_KEY = 'lumid-hq-labs';
 // Public launch settings. AI and cloud sync are "labs" features: hidden for new users,
 // kept on for anyone who already set them up or opens the app with ?labs=1.
-const LAUNCH = { earlyAccessDays: 30, feedbackUrl: 'mailto:hello@lumid.in?subject=Lumid%20HQ%20feedback', privacyUrl: 'privacy.html' };
+const LAUNCH = {
+  earlyAccessDays: 30,
+  trialDays: 30,
+  feedbackUrl: 'mailto:hello@lumid.in?subject=Lumid%20HQ%20feedback',
+  privacyUrl: 'privacy.html',
+  termsUrl: 'terms.html',
+  refundUrl: 'refund.html',
+  price: { monthly: '$5', yearly: '$48' },
+  // ↓ Fill these in to switch on accounts, trials and payments (see SETUP.md). Both Supabase
+  //   values are public by design — Row Level Security protects the data.
+  supabaseUrl: '',
+  supabaseKey: '',
+  checkout: { monthly: '', yearly: '' }, // Lemon Squeezy checkout links (Share → Checkout link)
+  analyticsToken: '', // Cloudflare Web Analytics token (optional)
+  sentryLoader: '', // Sentry "Loader Script" URL, e.g. https://js.sentry-cdn.com/<key>.min.js (optional)
+};
 const THEME_KEY = 'lumid-hq-theme';
 const VENTURE_COLORS = ['#5e5ce6', '#30b0c7', '#ff9f0a', '#ff375f', '#0a84ff', '#30d158'];
 
@@ -1288,18 +1303,22 @@ function viewSettings() {
         <button class="btn" type="submit">Save</button>
       </form>
     </div>
+    ${cloud.configured ? `<div class="card">
+      <div class="card-head"><h3>Account</h3></div>
+      ${accountCard()}
+    </div>` : ''}
     ${labsOn() ? `<div class="card">
       <div class="card-head">${appIcon('sparkle', '', 'sparkle')}<h3>AI assistant</h3></div>
       ${aiCard()}
     </div>
-    <div class="card">
+    ${cloud.configured ? '' : `<div class="card">
       <div class="card-head"><h3>☁️ Cloud sync</h3></div>
-      ${cloudCard()}
-    </div>` : ''}
+      ${cloudConnectCard()}
+    </div>`}` : ''}
     <div class="card">
       <div class="card-head"><h3>Feedback & privacy</h3></div>
-      <p class="small muted">Lumid HQ is in early access. Your notes stay in this browser — nothing is sent to our servers.</p>
-      <div class="row"><a class="btn" href="${LAUNCH.feedbackUrl}">Send feedback</a><a class="btn ghost" href="${LAUNCH.privacyUrl}" target="_blank" rel="noopener">Privacy</a></div>
+      <p class="small muted">${cloud.user ? 'Your data is stored on this device and synced to your account.' : 'Your notes stay in this browser unless you sign in to sync.'}</p>
+      <div class="row"><a class="btn" href="${LAUNCH.feedbackUrl}">Send feedback</a><a class="btn ghost" href="${LAUNCH.privacyUrl}" target="_blank" rel="noopener">Privacy</a><a class="btn ghost" href="${LAUNCH.termsUrl}" target="_blank" rel="noopener">Terms</a></div>
     </div>
     <div class="card">
       <div class="card-head"><h3>Backup</h3></div>
@@ -1526,7 +1545,15 @@ const ACTIONS = {
     if (!confirm('Erase ALL data on this device? Export a backup first if unsure.')) return;
     db = emptyDb(); store.save(); render(); toast('All data erased');
   },
-  'cloud-sync': () => cloud.pull(),
+  'cloud-sync': async () => { await cloud.loadPlan(); cloud.pull(); },
+  signin: () => openSignIn(),
+  'signin-google': () => cloud.signInWithGoogle(),
+  upgrade: () => openUpgrade(),
+  'delete-account': () => {
+    if (!confirm('Delete your Lumid HQ account and all synced data? Any subscription is cancelled. This cannot be undone.')) return;
+    if (prompt('Type DELETE to confirm') !== 'DELETE') return toast('Account not deleted');
+    cloud.deleteAccount();
+  },
   voice: toggleVoice,
   'col-new': () => openCollectionForm(),
   'col-rename': () => openCollectionForm(state.resCollection),
@@ -1713,9 +1740,13 @@ document.addEventListener('submit', (e) => {
     case 'cloud-config':
       cloud.connect(form.elements.url.value, form.elements.key.value);
       break;
-    case 'cloud-auth': {
-      const create = e.submitter?.value === 'signup';
-      cloud.signIn(form.elements.email.value.trim(), form.elements.password.value, create);
+    case 'signin-email': {
+      const btn = $('button[type=submit]', form);
+      btn.disabled = true;
+      cloud.sendMagicLink(form.elements.email.value.trim()).then((sent) => {
+        if (sent) form.innerHTML = `<p class="confirm-note">Check <b>${esc(form.elements?.email?.value || 'your inbox')}</b> — tap the link in the email to finish signing in. You can close this.</p>`;
+        else btn.disabled = false;
+      });
       break;
     }
     case 'ventures': {
@@ -1767,23 +1798,31 @@ document.addEventListener('keydown', (e) => {
 // Sync across tabs
 window.addEventListener('storage', (e) => { if (e.key === STORE_KEY) { db = store.load() || emptyDb(); render(); } });
 
-/* ---------- Cloud sync (optional, Supabase) ---------- */
+/* ---------- Accounts & cloud sync (Supabase) ---------- */
 // Local-first: localStorage is the source of truth on each device; the whole
 // dataset is mirrored to one row per user. Conflicts resolve last-write-wins.
+// Hosted mode uses the project in LAUNCH (every user signs in to it); labs mode
+// lets a power user connect their own Supabase project instead.
 const CLOUD_KEY = 'lumid-hq-cloud';
+const PENDING_SIGNIN_KEY = 'lumid-hq-pending-signin';
 const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-const SYNC_LABELS = { off: '', 'signed-out': 'Sign in to sync', syncing: 'Syncing…', synced: 'Synced', offline: 'Offline', error: 'Sync error' };
+const HOSTED = Boolean(LAUNCH.supabaseUrl && LAUNCH.supabaseKey);
+const SYNC_LABELS = { off: '', 'signed-out': 'Sign in to sync', syncing: 'Syncing…', synced: 'Synced', offline: 'Offline', error: 'Sync error', paywall: 'Sync paused' };
+const DAY_MS = 864e5;
 
 const cloud = {
   cfg: {},
   client: null,
   user: null,
+  plan: null,
   status: 'off',
   timer: null,
 
   load() { try { this.cfg = JSON.parse(localStorage.getItem(CLOUD_KEY)) || {}; } catch { this.cfg = {}; } },
   persist() { try { localStorage.setItem(CLOUD_KEY, JSON.stringify(this.cfg)); } catch {} },
-  get configured() { return Boolean(this.cfg.url && this.cfg.key); },
+  get manual() { return !HOSTED && Boolean(this.cfg.url && this.cfg.key); },
+  get configured() { return HOSTED || this.manual; },
+  get endpoint() { return HOSTED ? { url: LAUNCH.supabaseUrl, key: LAUNCH.supabaseKey } : { url: this.cfg.url, key: this.cfg.key }; },
 
   set(status) {
     this.status = status;
@@ -1791,7 +1830,7 @@ const cloud = {
     el.hidden = status === 'off';
     el.dataset.status = status;
     $('span', el).textContent = SYNC_LABELS[status];
-    if (state.view === 'settings' && !modal.open && !document.activeElement?.closest('.view form')) render();
+    if (!modal.open && !document.activeElement?.closest('.view form') && ['settings', 'today'].includes(state.view)) render();
   },
 
   async init() {
@@ -1799,12 +1838,57 @@ const cloud = {
     if (!this.configured) return this.set('off');
     try {
       const { createClient } = await import(SUPABASE_JS);
-      this.client = createClient(this.cfg.url, this.cfg.key, { auth: { persistSession: true, storageKey: 'lumid-hq-auth' } });
+      const { url, key } = this.endpoint;
+      this.client = createClient(url, key, { auth: { persistSession: true, storageKey: 'lumid-hq-auth', detectSessionInUrl: true } });
       const { data } = await this.client.auth.getSession();
       this.user = data.session?.user || null;
-      this.client.auth.onAuthStateChange((_event, session) => { this.user = session?.user || null; });
-      if (this.user) await this.pull(); else this.set('signed-out');
+      this.client.auth.onAuthStateChange((event, session) => {
+        const wasSignedOut = !this.user;
+        this.user = session?.user || null;
+        if (event === 'SIGNED_IN' && wasSignedOut && this.user) this.afterSignIn();
+      });
+      if (this.user) await this.afterSignIn();
+      else this.set('signed-out');
     } catch { this.set(navigator.onLine ? 'error' : 'offline'); }
+  },
+
+  // A sign-in that just completed (Google or email link) makes the cloud copy win;
+  // this device's data is kept as a local backup. Returning sessions just sync.
+  async afterSignIn() {
+    let fresh = false;
+    try { fresh = localStorage.getItem(PENDING_SIGNIN_KEY) === '1'; localStorage.removeItem(PENDING_SIGNIN_KEY); } catch {}
+    if (fresh) {
+      try { localStorage.setItem(STORE_KEY + '-presync', JSON.stringify(db)); } catch {}
+      Object.assign(this.cfg, { lastSynced: 0, dirty: false });
+      this.persist();
+      if (modal.open) closeModal();
+    }
+    await this.loadPlan();
+    await this.pull();
+    if (fresh) toast(`Signed in as ${this.user.email}`);
+    render();
+  },
+
+  async loadPlan() {
+    if (!this.user) return;
+    const { data, error } = await this.client.from('subscriptions').select('*').eq('user_id', this.user.id).maybeSingle();
+    this.plan = error ? null : data;
+  },
+
+  // Mirrors public.has_access() in supabase/schema.sql — the database is the real gate.
+  get hasAccess() {
+    const p = this.plan;
+    if (!p) return true;
+    const now = Date.now();
+    if (['active', 'on_trial', 'past_due'].includes(p.status)) return true;
+    if (p.status === 'trialing') return Date.parse(p.trial_ends_at) > now;
+    if (p.status === 'cancelled') return !p.current_period_end || Date.parse(p.current_period_end) > now;
+    return false;
+  },
+  get isPaid() { return Boolean(this.plan && ['active', 'on_trial', 'past_due', 'cancelled'].includes(this.plan.status) && this.hasAccess); },
+  get trialDaysLeft() {
+    if (this.plan?.status !== 'trialing') return null;
+    return Math.max(0, Math.ceil((Date.parse(this.plan.trial_ends_at) - Date.now()) / DAY_MS));
   },
 
   markDirty() {
@@ -1830,45 +1914,58 @@ const cloud = {
       Object.assign(this.cfg, { lastSynced: remoteAt, dirty: false });
       this.persist();
       render();
-      return this.set('synced');
+      return this.set(this.hasAccess ? 'synced' : 'paywall');
     }
     if (this.cfg.dirty) return this.push();
-    this.set('synced');
+    this.set(this.hasAccess ? 'synced' : 'paywall');
   },
 
   async push() {
     if (!this.user) return;
+    if (!this.hasAccess) return this.set('paywall');
     this.set('syncing');
     const at = this.cfg.localUpdatedAt || Date.now();
     const { error } = await this.client.from('hq_state').upsert({ user_id: this.user.id, data: db, updated_at: new Date(at).toISOString() });
-    if (error) return this.set(navigator.onLine ? 'error' : 'offline');
+    if (error) {
+      // 42501 = blocked by row-level security: the trial ended or the subscription lapsed.
+      if (error.code === '42501') { await this.loadPlan(); return this.set('paywall'); }
+      return this.set(navigator.onLine ? 'error' : 'offline');
+    }
     Object.assign(this.cfg, { lastSynced: at, dirty: false });
     this.persist();
     this.set('synced');
   },
 
-  async signIn(email, password, create) {
-    const auth = this.client.auth;
-    const { data, error } = create
-      ? await auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } })
-      : await auth.signInWithPassword({ email, password });
+  markPendingSignIn() { try { localStorage.setItem(PENDING_SIGNIN_KEY, '1'); } catch {} },
+  redirectTo() { return location.origin + location.pathname; },
+
+  async signInWithGoogle() {
+    this.markPendingSignIn();
+    const { error } = await this.client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: this.redirectTo() } });
+    if (error) toast(error.message);
+  },
+
+  async sendMagicLink(email) {
+    this.markPendingSignIn();
+    const { error } = await this.client.auth.signInWithOtp({ email, options: { emailRedirectTo: this.redirectTo() } });
     if (error) return toast(error.message);
-    if (!data.session) return toast('Check your email to confirm, then sign in');
-    this.user = data.session.user;
-    // Fresh sign-in: the cloud copy wins. Keep this device's data as a safety backup.
-    try { localStorage.setItem(STORE_KEY + '-presync', JSON.stringify(db)); } catch {}
-    Object.assign(this.cfg, { lastSynced: 0, dirty: false });
-    this.persist();
-    await this.pull();
-    render();
-    toast(`Signed in as ${this.user.email}`);
+    toast(`Check ${email} for your sign-in link`, '', null);
+    return true;
   },
 
   async signOut() {
     await this.client?.auth.signOut();
     this.user = null;
+    this.plan = null;
     this.set(this.configured ? 'signed-out' : 'off');
     render();
+  },
+
+  async deleteAccount() {
+    const { data, error } = await this.client.functions.invoke('delete-account', { method: 'POST' });
+    if (error || data?.error) return toast(data?.error || 'Could not delete the account — try again');
+    await this.signOut();
+    toast('Account deleted. Your data on this device is untouched.');
   },
 
   async connect(url, key) {
@@ -1889,36 +1986,99 @@ const cloud = {
   },
 };
 
-function cloudCard() {
-  if (!cloud.configured) {
-    return `<p class="small muted">Sync across phone & laptop with a free Supabase database. Setup takes ~5 minutes — see <code>SETUP.md</code> in the repo.</p>
-      <form data-form="cloud-config">
-        <div class="field"><label for="cloud-url">Supabase project URL</label><input type="text" id="cloud-url" name="url" placeholder="https://xxxx.supabase.co" required autocomplete="off" inputmode="url"></div>
-        <div class="field"><label for="cloud-key">Anon / publishable key</label><input type="text" id="cloud-key" name="key" placeholder="eyJhbGciOi… or sb_publishable_…" required autocomplete="off"></div>
-        <button class="btn" type="submit">Connect</button>
-      </form>`;
+/* ---------- Plans, upgrade & account UI ---------- */
+function checkoutUrl(period) {
+  const base = LAUNCH.checkout[period];
+  if (!base || !cloud.user) return '';
+  const params = new URLSearchParams({ 'checkout[email]': cloud.user.email || '', 'checkout[custom][user_id]': cloud.user.id });
+  return `${base}${base.includes('?') ? '&' : '?'}${params}`;
+}
+
+function planLine() {
+  const p = cloud.plan;
+  if (!p) return '';
+  if (p.status === 'trialing') {
+    const left = cloud.trialDaysLeft;
+    return left > 0 ? `Pro trial · ${left} day${left === 1 ? '' : 's'} left` : 'Trial ended · sync paused';
   }
+  if (cloud.isPaid) {
+    const end = p.current_period_end ? new Date(p.current_period_end).toLocaleDateString() : '';
+    return p.status === 'cancelled' ? `Pro · ends ${end}` : p.status === 'past_due' ? 'Pro · payment failed — update your card' : `Pro${end ? ` · renews ${end}` : ''}`;
+  }
+  return 'Pro ended · sync paused';
+}
+
+function openSignIn(reason = '') {
+  if (!cloud.client) return toast(navigator.onLine ? 'Accounts are loading — try again in a moment' : 'You’re offline');
+  openModal('Sign in to Lumid HQ', `
+    <p class="welcome-lead">${reason || `Sync your ideas, tasks and plans across phone and laptop. New accounts get ${LAUNCH.trialDays} days of Pro free — no card needed.`}</p>
+    <button class="btn google-btn" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button>
+    <div class="or-rule"><span>or</span></div>
+    <form id="signin-form" data-form="signin-email">
+      <div class="field"><label for="signin-email">Email</label>
+        <input type="email" id="signin-email" name="email" required autocomplete="email" placeholder="you@company.com"></div>
+      <button class="btn ghost" type="submit" style="width:100%">Email me a sign-in link</button>
+    </form>
+    <p class="small muted" style="margin-top:16px">By continuing you agree to the <a href="${LAUNCH.termsUrl}" target="_blank" rel="noopener">Terms</a> and <a href="${LAUNCH.privacyUrl}" target="_blank" rel="noopener">Privacy Policy</a>.</p>`);
+}
+
+function openUpgrade() {
+  if (!cloud.user) return openSignIn('Create a free account first — then upgrade to Pro any time.');
+  const ready = LAUNCH.checkout.monthly || LAUNCH.checkout.yearly;
+  const plan = (period, price, per, note) => `
+    <div class="plan-card ${period === 'yearly' ? 'featured' : ''}">
+      ${period === 'yearly' ? '<span class="plan-flag">2 months free</span>' : ''}
+      <div class="plan-price">${price}<small>/${per}</small></div>
+      <p class="small muted">${note}</p>
+      ${ready ? `<a class="btn ${period === 'yearly' ? '' : 'ghost'}" href="${esc(checkoutUrl(period))}" target="_blank" rel="noopener">Choose ${period}</a>` : ''}
+    </div>`;
+  openModal('Upgrade to Pro', `
+    <ul class="plan-perks">
+      <li>Sync across all your devices</li>
+      <li>Automatic cloud backup</li>
+      <li>Everything in Lumid HQ, unlimited</li>
+      <li>Support an indie product — cancel any time</li>
+    </ul>
+    <div class="plan-grid">
+      ${plan('monthly', LAUNCH.price.monthly, 'month', 'Billed monthly')}
+      ${plan('yearly', LAUNCH.price.yearly, 'year', 'Billed yearly')}
+    </div>
+    ${ready ? `<p class="small muted">Secure checkout by Lemon Squeezy. Prices shown in USD; local taxes may apply. After paying, come back here — Pro turns on within a minute. <a href="${LAUNCH.refundUrl}" target="_blank" rel="noopener">Refund policy</a></p>`
+      : `<p class="confirm-note">Payments open very soon. You’ll keep full access until then — <a href="${LAUNCH.feedbackUrl}">tell us</a> if you’d like to be first to know.</p>`}`);
+}
+
+function manageBillingUrl() {
+  return cloud.plan?.portal_url || 'https://app.lemonsqueezy.com/my-orders';
+}
+
+function accountCard() {
   if (!cloud.user) {
-    return `<p class="small muted">Connected to <b>${esc(hostOf(cloud.cfg.url))}</b>. Sign in to start syncing.</p>
-      <form data-form="cloud-auth">
-        <div class="field"><label for="cloud-email">Email</label><input type="email" id="cloud-email" name="email" required autocomplete="email"></div>
-        <div class="field"><label for="cloud-pass">Password</label><input type="password" id="cloud-pass" name="password" required minlength="6" autocomplete="current-password"></div>
-        <div class="row">
-          <button class="btn" type="submit" name="mode" value="signin">Sign in</button>
-          <button class="btn ghost" type="submit" name="mode" value="signup">Create account</button>
-          <span class="spacer"></span>
-          <button class="btn sm ghost" type="button" data-action="cloud-disconnect">Disconnect</button>
-        </div>
-      </form>`;
+    return `<p class="small muted">Sign in to sync across devices and back up to the cloud. New accounts get ${LAUNCH.trialDays} days of Pro free — no card needed.</p>
+      <div class="row"><button class="btn" data-action="signin">Sign in or create account</button></div>`;
   }
   const last = cloud.cfg.lastSynced ? new Date(cloud.cfg.lastSynced).toLocaleString() : 'never';
-  return `<p class="small muted">Signed in as <b>${esc(cloud.user.email)}</b><br>Status: ${SYNC_LABELS[cloud.status] || '—'} · last synced ${esc(last)}</p>
+  const line = planLine();
+  return `<p class="small muted">Signed in as <b>${esc(cloud.user.email || '')}</b>${line ? `<br>${esc(line)}` : ''}<br>Sync: ${SYNC_LABELS[cloud.status] || '—'} · last synced ${esc(last)}</p>
     <div class="row">
-      <button class="btn" data-action="cloud-sync">Sync now</button>
+      ${cloud.plan && !cloud.isPaid ? '<button class="btn" data-action="upgrade">Upgrade to Pro</button>' : ''}
+      ${cloud.plan?.subscription_id ? `<a class="btn ghost" href="${esc(manageBillingUrl())}" target="_blank" rel="noopener">Manage billing</a>` : ''}
+      <button class="btn ghost" data-action="cloud-sync">Sync now</button>
       <button class="btn ghost" data-action="cloud-signout">Sign out</button>
-      <button class="btn sm ghost" data-action="cloud-disconnect">Disconnect</button>
-    </div>`;
+      ${cloud.manual ? '<button class="btn sm ghost" data-action="cloud-disconnect">Disconnect</button>' : ''}
+    </div>
+    ${HOSTED ? '<p class="small" style="margin-top:16px"><button class="link-danger" data-action="delete-account">Delete account</button></p>' : ''}`;
 }
+
+function cloudConnectCard() {
+  return `<p class="small muted">Labs: connect your own Supabase project for sync (see <code>SETUP.md</code>).</p>
+    <form data-form="cloud-config">
+      <div class="field"><label for="cloud-url">Supabase project URL</label><input type="text" id="cloud-url" name="url" placeholder="https://xxxx.supabase.co" required autocomplete="off" inputmode="url"></div>
+      <div class="field"><label for="cloud-key">Anon / publishable key</label><input type="text" id="cloud-key" name="key" placeholder="eyJhbGciOi… or sb_publishable_…" required autocomplete="off"></div>
+      <button class="btn" type="submit">Connect</button>
+    </form>`;
+}
+
+const GOOGLE_MARK = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 7.9-2.9l-3.9-3a7.2 7.2 0 0 1-10.7-3.8h-4v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.3 14.3a7.2 7.2 0 0 1 0-4.6V6.6h-4a12 12 0 0 0 0 10.8z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.3 6.6l4 3.1A7.2 7.2 0 0 1 12 4.8z"/></svg>';
 
 /* ---------- AI assistant (free-tier LLMs, called straight from the browser) ---------- */
 // The key is stored only on this device (never synced) and sent only to the chosen provider.
@@ -2263,7 +2423,7 @@ function aiCard() {
 /* ---------- Public launch: labs flag, early access, welcome ---------- */
 function labsOn() {
   try { if (localStorage.getItem(LABS_KEY) === '1') return true; } catch {}
-  return ai.ready || cloud.configured;
+  return ai.ready || cloud.manual;
 }
 
 const launchMeta = {
@@ -2272,6 +2432,7 @@ const launchMeta = {
 };
 
 function earlyAccessStrip() {
+  if (HOSTED) return planStrip();
   if (labsOn()) return '';
   const first = launchMeta.get().firstSeen || today();
   const left = LAUNCH.earlyAccessDays - Math.round((fromISO(today()) - fromISO(first)) / 864e5);
@@ -2279,6 +2440,17 @@ function earlyAccessStrip() {
     ? `Early access · free for your first month — <b>${left} day${left === 1 ? '' : 's'} left</b>`
     : 'Your free month is over — thanks for being early. Pro is coming soon.';
   return `<div class="early-strip"><span>${text}</span><a href="${LAUNCH.feedbackUrl}">Send feedback</a></div>`;
+}
+
+// Today's banner once accounts are live: trial countdown, paywall, or a sign-in nudge.
+function planStrip() {
+  const strip = (text, action, label) => `<div class="early-strip"><span>${text}</span>${action ? `<button class="btn sm" data-action="${action}">${label}</button>` : ''}</div>`;
+  if (!cloud.client) return '';
+  if (!cloud.user) return strip(`Sync across devices — <b>${LAUNCH.trialDays} days of Pro free</b>, no card needed`, 'signin', 'Sign in');
+  if (!cloud.plan || cloud.isPaid) return cloud.plan?.status === 'past_due' ? strip('Your last payment failed — update your card to keep Pro', 'upgrade', 'Fix billing') : '';
+  if (!cloud.hasAccess) return strip('Your trial has ended — <b>sync is paused</b>. Everything on this device is safe.', 'upgrade', 'Upgrade');
+  const left = cloud.trialDaysLeft;
+  return left <= 7 ? strip(`Pro trial · <b>${left} day${left === 1 ? '' : 's'} left</b>`, 'upgrade', 'Upgrade') : '';
 }
 
 function openWelcome() {
@@ -2289,6 +2461,7 @@ function openWelcome() {
         <input type="text" id="welcome-projects" name="projects" placeholder="e.g. Acme, Side project" autocomplete="off">
         <p class="small muted" style="margin:8px 0 0">Your companies or projects, separated by commas. You can change this later.</p></div>
       <label class="row small"><input type="checkbox" class="check" name="sample" checked> Add sample data to explore</label>
+      ${HOSTED ? '<p class="small muted" style="margin-top:16px">Already have an account? <button type="button" class="link-btn" data-action="signin">Sign in</button></p>' : ''}
     </form>`,
     `<a class="btn ghost" href="${LAUNCH.privacyUrl}" target="_blank" rel="noopener">Privacy</a><span class="spacer"></span><button class="btn" type="submit" form="welcome-form">Get started</button>`);
 }
@@ -2328,9 +2501,21 @@ if (new URLSearchParams(location.search).get('labs') === '1') { try { localStora
 if (!launchMeta.get().firstSeen) launchMeta.set({ firstSeen: today() });
 if (firstRun) { render(); openWelcome(); }
 cloud.init();
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && cloud.user) cloud.pull(); });
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible' || !cloud.user) return;
+  await cloud.loadPlan(); // picks up a payment made in another tab
+  cloud.pull();
+});
 window.addEventListener('online', () => { if (cloud.user) cloud.pull(); });
 setInterval(() => { if (document.visibilityState === 'visible' && cloud.user && !cloud.cfg.dirty) cloud.pull(); }, 60000);
+
+function loadScript(src, attrs = {}) {
+  const el = Object.assign(document.createElement('script'), { src, defer: true, crossOrigin: 'anonymous' });
+  Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+  document.head.append(el);
+}
+if (LAUNCH.analyticsToken) loadScript('https://static.cloudflareinsights.com/beacon.min.js', { 'data-cf-beacon': JSON.stringify({ token: LAUNCH.analyticsToken }) });
+if (LAUNCH.sentryLoader) loadScript(LAUNCH.sentryLoader);
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

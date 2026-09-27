@@ -1,40 +1,102 @@
-# Going live
+# Launching Lumid HQ
 
-## 1. Publish the site (GitHub Pages, free)
-1. GitHub → repo **Settings → Pages → Build and deployment → Source: Deploy from a branch**.
-2. Branch: **main**, folder: **/ (root)** → **Save**.
-3. Every merge into `main` goes live in about a minute at **https://riyan-hx.github.io/FRZrEpo/**
-4. On your phone open that URL → **Add to Home Screen** / **Install app**.
+Everything is built. Turning on accounts, trials and payments is configuration only — fill in the
+`LAUNCH` block at the top of `app.js`. Until then the app runs exactly as today (local-only, free).
 
-Without cloud sync, data is stored only in each browser (use Settings → Export/Import to move it).
+Order: **1 Hosting → 2 Supabase → 3 Google sign-in → 4 Lemon Squeezy → 5 Analytics → 6 Go live.**
 
-## 2. Cloud database & sync (Supabase, free tier)
-1. Create a project at https://supabase.com (any region, save the DB password).
-2. **SQL Editor → New query** → paste `supabase/schema.sql` → **Run**.
-3. **Authentication → URL Configuration → Site URL**: `https://riyan-hx.github.io/FRZrEpo/`
-4. **Project Settings → API**: copy the **Project URL** and the **anon / publishable** key.
-   (The anon key is safe in the browser — Row Level Security restricts every user to their own row. Never paste the `service_role` / secret key.)
-5. In Lumid HQ: **Settings → Cloud sync** → paste URL + key → **Connect** → **Create account** → confirm the email → **Sign in**.
-6. On every other device: Connect with the same URL + key and **Sign in**. The cloud copy is loaded (this device's previous data is kept as a local backup).
-7. Lock it down: after creating your account, **Authentication → Sign In / Providers → turn off "Allow new users to sign up"**.
+---
 
-### How sync works
-- Local-first: the app works fully offline; changes upload ~1.5 s after you stop editing.
-- It pulls the latest copy when you open/focus the app and every minute while it's open.
-- If two devices edit while offline, the most recent save wins.
+## 1. Hosting on Cloudflare Pages + hq.lumid.in (15 min)
+GitHub Pages doesn't allow commercial use, so move to Cloudflare Pages (free, commercial OK).
 
-## 3. AI assistant & voice capture (free)
-Speak or type naturally ("meet the psychologist for Lumid AI tomorrow 3pm, and send the investor update Friday") — the AI splits it into events, tasks, ideas and notes with dates and times, and shows a review sheet before saving.
+1. https://dash.cloudflare.com → **Workers & Pages → Create → Pages → Connect to Git** → pick `riyan-hx/FRZrEpo`.
+2. Build settings: Framework **None**, build command **empty**, output directory **`/`**. Deploy.
+3. **Custom domains → Set up a domain → `hq.lumid.in`** and follow the DNS instructions.
+   (If lumid.in's DNS isn't on Cloudflare, add the CNAME it shows at your registrar.)
+4. The app is at `https://hq.lumid.in/`, the landing page at `https://hq.lumid.in/landing.html`
+   (or copy `landing.html` to `lumid.in/hq`).
+5. Once live, turn off GitHub Pages (repo Settings → Pages → Source: None).
 
-1. Get a free API key (no card needed):
-   - **Google Gemini** (recommended — also understands voice recordings): https://aistudio.google.com/apikey
-   - **Groq** (fast, voice via Whisper): https://console.groq.com/keys
-   - **OpenRouter** (free `:free` models, text only): https://openrouter.ai/keys
-2. In Lumid HQ: **Settings → AI assistant** → choose the provider → paste the key → **Save** → **Test**.
-3. Tap the 🎤 mic in the capture box on Today, speak, then tap stop.
+`_headers` adds security headers and makes sure updates reach users immediately.
 
-Notes:
-- The key is stored only in this browser and sent only to the provider you choose; it is not synced to the cloud database.
-- Free tiers have rate limits; if a request fails, the note is still saved with the built-in parser.
-- Voice uses the browser's speech recognition (Chrome, Safari). Where that isn't available, the app records audio and sends it to Gemini or Groq instead.
-- Uncheck **Organize typed notes with AI too** to use AI only for voice.
+## 2. Supabase: accounts, trials, paywall (15 min)
+1. https://supabase.com → **New project** (region close to your users, e.g. Mumbai). Save the DB password.
+2. **SQL Editor → New query** → paste all of `supabase/schema.sql` → **Run**.
+   This creates synced data, `subscriptions` (30-day trial for every new account), and the rule that
+   blocks sync writes once a trial or subscription ends.
+3. **Authentication → URL Configuration**
+   - Site URL: `https://hq.lumid.in`
+   - Redirect URLs: add `https://hq.lumid.in/**`
+4. **Authentication → Emails**: optionally customise the "Magic Link" template (subject: "Your Lumid HQ sign-in link").
+   For launch volume, set up custom SMTP (e.g. Resend, free up to ~3k emails/month) under **Authentication → SMTP**
+   — Supabase's built-in email is rate-limited.
+5. **Project Settings → API** → copy **Project URL** and **anon / publishable key** into `app.js`:
+   ```js
+   supabaseUrl: 'https://xxxx.supabase.co',
+   supabaseKey: 'eyJ… or sb_publishable_…',
+   ```
+   Both are public by design. **Never** put the `service_role` / secret key in the app.
+6. Upgrade to **Pro ($25/mo)** once people pay you (daily backups, no pausing).
+
+## 3. "Continue with Google" (10 min)
+1. https://console.cloud.google.com → create a project → **APIs & Services → OAuth consent screen**
+   (External; app name "Lumid HQ"; support email; authorized domain `lumid.in`; add privacy/terms URLs).
+2. **Credentials → Create credentials → OAuth client ID → Web application**
+   - Authorized redirect URI: `https://xxxx.supabase.co/auth/v1/callback` (shown in Supabase under Authentication → Providers → Google)
+3. Paste the Client ID and Secret into **Supabase → Authentication → Providers → Google** → Enable.
+4. **Publish** the consent screen so anyone can sign in.
+
+## 4. Lemon Squeezy payments (30 min + approval time)
+Lemon Squeezy is the merchant of record: it charges customers, handles global VAT/GST and invoices, and pays you out.
+
+1. https://lemonsqueezy.com → create a store (e.g. `lumid`). Complete identity + payout setup and **request store activation** — this can take a few days, so do it first.
+2. **Products → New product** "Lumid HQ Pro" → type **Subscription** with two variants:
+   - Monthly: **$5 / month**
+   - Yearly: **$48 / year**
+   In each variant's settings, set the redirect after purchase to `https://hq.lumid.in/#settings`.
+3. For each variant: **Share → Checkout link** → copy into `app.js`:
+   ```js
+   checkout: { monthly: 'https://lumid.lemonsqueezy.com/buy/…', yearly: 'https://lumid.lemonsqueezy.com/buy/…' },
+   ```
+   The app adds the customer's email and account id to the link automatically.
+4. **Deploy the webhook** (Supabase CLI: `npm i -g supabase`, then `supabase login`, `supabase link --project-ref xxxx`):
+   ```bash
+   supabase functions deploy lemonsqueezy-webhook --no-verify-jwt
+   supabase functions deploy delete-account
+   ```
+5. **Lemon Squeezy → Settings → Webhooks → +**
+   - URL: `https://xxxx.supabase.co/functions/v1/lemonsqueezy-webhook`
+   - Signing secret: make up a long random string
+   - Events: all `subscription_*` events (created, updated, cancelled, resumed, expired, paused, unpaused, payment_success, payment_failed, payment_recovered)
+6. Store the secrets in Supabase:
+   ```bash
+   supabase secrets set LEMONSQUEEZY_WEBHOOK_SECRET='the-same-random-string'
+   supabase secrets set LEMONSQUEEZY_API_KEY='…'   # Settings → API; lets "Delete account" cancel a subscription
+   ```
+7. **Test mode first**: toggle Lemon Squeezy to test mode, buy with card `4242 4242 4242 4242`, and check
+   **Supabase → Table editor → subscriptions** shows `active` for your user. Then switch to live.
+
+## 5. Analytics & error tracking (10 min, optional)
+- **Cloudflare Web Analytics** (free, no cookies): Cloudflare → Analytics & Logs → Web Analytics → add `hq.lumid.in` → copy the token → `analyticsToken: '…'`.
+- **Sentry** (free tier): create a Browser JavaScript project → **Settings → Client Keys → Loader Script** → copy the URL → `sentryLoader: 'https://js.sentry-cdn.com/….min.js'`.
+
+## 6. Go live checklist
+- [ ] `hello@lumid.in` receives mail (feedback, refunds, privacy requests all point there)
+- [ ] Sign in with Google and with an email link on phone + laptop; data syncs both ways
+- [ ] Test purchase in Lemon Squeezy test mode flips your account to Pro; "Manage billing" opens the portal
+- [ ] Set a test user's `trial_ends_at` to yesterday in the Table editor → app shows "sync is paused"
+- [ ] Privacy, Terms and Refunds pages open from Settings and the landing page
+- [ ] Record the demo video and swap it into `landing.html` (see the comment in the demo block)
+
+## How the plans work
+- **Free (no account):** every feature, stored on one device, works offline, export any time.
+- **Pro trial:** creating an account starts 30 days of Pro — sync + cloud backup — no card needed.
+- **After the trial:** without a subscription, the database refuses sync writes (enforced by Row Level
+  Security, so it can't be bypassed from the browser). Local data and export keep working; the account
+  can still read its cloud copy.
+- **Pro ($5/mo or $48/yr):** Lemon Squeezy webhook marks the account active; cancelling keeps Pro until the paid period ends.
+
+## Labs (owner-only features)
+AI capture and connecting your own Supabase project are hidden for public users. Open the app with
+`?labs=1` to show them. Your AI key stays on your device and is never synced.
