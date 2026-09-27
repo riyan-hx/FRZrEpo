@@ -7,7 +7,13 @@ Order: **1 Hosting → 2 Supabase → 3 Google sign-in → 4 Lemon Squeezy → 5
 
 ---
 
-## 1. Hosting on Cloudflare Pages + theforge.lumid.in (15 min)
+## 1a. Hosting on Vercel (recommended — automatic deploys)
+`vercel.json` is included (build `sh scripts/build.sh` → `dist`, security headers, no-cache for the app shell).
+Import the repo at vercel.com/new, add the domain `theforge.lumid.in`, and every merge to `main` deploys
+automatically. Vercel's Hobby plan is non-commercial — move to Pro before charging customers.
+The full click-by-click setup (Vercel, DNS, Supabase, Google, Resend, Lemon Squeezy) is in `LAUNCH_PROMPT.md`.
+
+## 1b. Hosting on Cloudflare Pages (alternative) + theforge.lumid.in (15 min)
 GitHub Pages doesn't allow commercial use, so move to Cloudflare Pages (free, commercial OK).
 
 1. https://dash.cloudflare.com → **Workers & Pages → Create → Pages → Connect to Git** → pick `riyan-hx/FRZrEpo`.

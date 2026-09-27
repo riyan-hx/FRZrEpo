@@ -2545,7 +2545,9 @@ function showAuth(mode, notice = '') {
   const el = $('#auth');
   el.hidden = false;
   el.innerHTML = authView();
-  $('input', el)?.focus();
+  el.scrollTop = 0;
+  // Desktop only: on phones, focusing would pop the keyboard and push the page up.
+  if (matchMedia('(hover: hover) and (min-width: 901px)').matches) $('input', el)?.focus();
 }
 
 function hideAuth() {
