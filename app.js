@@ -1883,8 +1883,8 @@ const cloud = {
       const res = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } });
       const settings = await res.json();
       this.google = Boolean(settings.external?.google);
-    } catch { this.google = false; }
-    if (this.google && !$('#auth').hidden && ['signup', 'signin'].includes(authState.mode)) showAuth(authState.mode, authState.notice);
+    } catch { this.google = null; }
+    return this.google;
   },
 
   afterSignIn() {
@@ -1985,6 +1985,10 @@ const cloud = {
   redirectTo() { return location.origin + location.pathname; },
 
   async signInWithGoogle() {
+    // Without this check a disabled provider lands the user on a raw Supabase JSON error.
+    if (this.google === false && !(await this.detectProviders(this.endpoint.url, this.endpoint.key))) {
+      return toast('Google sign-in is coming soon — please use email for now');
+    }
     this.markPendingSignIn();
     const { error } = await this.client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: this.redirectTo() } });
     if (error) toast(error.message);
@@ -2062,8 +2066,8 @@ function openSignIn(reason = '') {
   if (!cloud.client) return toast(navigator.onLine ? 'Accounts are loading — try again in a moment' : 'You’re offline');
   openModal('Sign in to The Forge', `
     <p class="welcome-lead">${reason || `Sync your ideas, tasks and plans across phone and laptop. New accounts get ${LAUNCH.trialDays} days of Pro free — no card needed.`}</p>
-    ${cloud.google ? `<button class="btn google-btn" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button>
-    <div class="or-rule"><span>or</span></div>` : ''}
+    <button class="btn google-btn" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button>
+    <div class="or-rule"><span>or</span></div>
     <form id="signin-form" data-form="signin-email">
       <div class="field"><label for="signin-email">Email</label>
         <input type="email" id="signin-email" name="email" required autocomplete="email" placeholder="you@company.com"></div>
@@ -2562,7 +2566,7 @@ function authError(message) {
 
 function authView() {
   const { mode, email, notice } = authState;
-  const google = cloud.google ? `<button class="btn google-btn" type="button" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button><div class="or-rule"><span>or</span></div>` : '';
+  const google = `<button class="btn google-btn" type="button" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button><div class="or-rule"><span>or</span></div>`;
   const legal = `<p class="small muted auth-legal">By continuing you agree to the <a href="${LAUNCH.termsUrl}" target="_blank" rel="noopener">Terms</a> and <a href="${LAUNCH.privacyUrl}" target="_blank" rel="noopener">Privacy Policy</a>.</p>`;
   const switcher = (text, to, label) => `<p class="small auth-switch">${text} <button type="button" class="link-btn" data-action="auth-mode" data-mode="${to}">${label}</button></p>`;
   const error = `<p class="auth-error" id="auth-error" role="alert" hidden></p>`;
