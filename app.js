@@ -21,6 +21,9 @@ const LAUNCH = {
   //   values are public by design — Row Level Security protects the data.
   supabaseUrl: 'https://rbxxtyjcxexknnspgnyv.supabase.co',
   supabaseKey: 'sb_publishable_FQC75Lv6PjGtqBHiFV4vxw_JWCQEtaa',
+  // Google OAuth Client ID (public, ends in .apps.googleusercontent.com). When set, Google's own
+  // button signs in on this domain, so the chooser never shows supabase.co.
+  googleClientId: '',
   checkout: { monthly: '', yearly: '' }, // Lemon Squeezy checkout links (Share → Checkout link)
   analyticsToken: '', // Cloudflare Web Analytics token (optional)
   sentryLoader: '', // Sentry "Loader Script" URL, e.g. https://js.sentry-cdn.com/<key>.min.js (optional)
@@ -1994,6 +1997,14 @@ const cloud = {
     if (error) toast(error.message);
   },
 
+  async signInWithGoogleToken(token, nonce) {
+    this.markPendingSignIn();
+    const { error } = await this.client.auth.signInWithIdToken({ provider: 'google', token, nonce });
+    if (!error) return;
+    authError(error.message);
+    toast(error.message);
+  },
+
   async sendMagicLink(email) {
     this.markPendingSignIn();
     const { error } = await this.client.auth.signInWithOtp({ email, options: { emailRedirectTo: this.redirectTo() } });
@@ -2066,14 +2077,14 @@ function openSignIn(reason = '') {
   if (!cloud.client) return toast(navigator.onLine ? 'Accounts are loading — try again in a moment' : 'You’re offline');
   openModal('Sign in to The Forge', `
     <p class="welcome-lead">${reason || `Sync your ideas, tasks and plans across phone and laptop. New accounts get ${LAUNCH.trialDays} days of Pro free — no card needed.`}</p>
-    <button class="btn google-btn" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button>
-    <div class="or-rule"><span>or</span></div>
+    ${googleButton()}
     <form id="signin-form" data-form="signin-email">
       <div class="field"><label for="signin-email">Email</label>
         <input type="email" id="signin-email" name="email" required autocomplete="email" placeholder="you@company.com"></div>
       <button class="btn ghost" type="submit" style="width:100%">Email me a sign-in link</button>
     </form>
     <p class="small muted" style="margin-top:16px">By continuing you agree to the <a href="${LAUNCH.termsUrl}" target="_blank" rel="noopener">Terms</a> and <a href="${LAUNCH.privacyUrl}" target="_blank" rel="noopener">Privacy Policy</a>.</p>`);
+  gsi.mount(modal);
 }
 
 function openUpgrade() {
@@ -2132,6 +2143,51 @@ function cloudConnectCard() {
       <button class="btn" type="submit">Connect</button>
     </form>`;
 }
+
+function googleButton() {
+  return `<div class="gsi-slot" hidden></div>
+    <button class="btn google-btn" type="button" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button>
+    <div class="or-rule"><span>or</span></div>`;
+}
+
+// Google Identity Services: Google's own button, bound to this domain. The fallback
+// button above stays visible if the script can't load (offline, blocked).
+const gsi = {
+  loading: null,
+  load() {
+    return this.loading ||= new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.onload = resolve;
+      script.onerror = () => { this.loading = null; reject(); };
+      document.head.append(script);
+    });
+  },
+  async nonce() {
+    const raw = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+    return { raw, hashed: [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('') };
+  },
+  async mount(root) {
+    const slot = root && $('.gsi-slot', root);
+    if (!LAUNCH.googleClientId || !slot) return;
+    try { await this.load(); } catch { return; }
+    if (!slot.isConnected) return;
+    const { raw, hashed } = await this.nonce();
+    google.accounts.id.initialize({
+      client_id: LAUNCH.googleClientId,
+      nonce: hashed,
+      callback: ({ credential }) => cloud.signInWithGoogleToken(credential, raw),
+    });
+    slot.hidden = false;
+    google.accounts.id.renderButton(slot, {
+      theme: 'outline', size: 'large', shape: 'pill', text: 'continue_with', logo_alignment: 'center',
+      width: Math.max(200, Math.min(400, slot.parentElement.clientWidth)),
+    });
+    slot.nextElementSibling.hidden = true;
+  },
+};
 
 const GOOGLE_MARK = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.3-2.1 3.5-5.2 3.5-8.8z"/><path fill="#34A853" d="M12 24c3.2 0 6-1.1 7.9-2.9l-3.9-3a7.2 7.2 0 0 1-10.7-3.8h-4v3.1A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.3 14.3a7.2 7.2 0 0 1 0-4.6V6.6h-4a12 12 0 0 0 0 10.8z"/><path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.3 6.6l4 3.1A7.2 7.2 0 0 1 12 4.8z"/></svg>';
 
@@ -2550,6 +2606,7 @@ function showAuth(mode, notice = '') {
   el.hidden = false;
   el.innerHTML = authView();
   el.scrollTop = 0;
+  gsi.mount(el);
   // Desktop only: on phones, focusing would pop the keyboard and push the page up.
   if (matchMedia('(hover: hover) and (min-width: 901px)').matches) $('input', el)?.focus();
 }
@@ -2566,7 +2623,7 @@ function authError(message) {
 
 function authView() {
   const { mode, email, notice } = authState;
-  const google = `<button class="btn google-btn" type="button" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button><div class="or-rule"><span>or</span></div>`;
+  const google = googleButton();
   const legal = `<p class="small muted auth-legal">By continuing you agree to the <a href="${LAUNCH.termsUrl}" target="_blank" rel="noopener">Terms</a> and <a href="${LAUNCH.privacyUrl}" target="_blank" rel="noopener">Privacy Policy</a>.</p>`;
   const switcher = (text, to, label) => `<p class="small auth-switch">${text} <button type="button" class="link-btn" data-action="auth-mode" data-mode="${to}">${label}</button></p>`;
   const error = `<p class="auth-error" id="auth-error" role="alert" hidden></p>`;

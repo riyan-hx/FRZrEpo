@@ -583,6 +583,8 @@ mark { background: color-mix(in srgb, var(--coral) 30%, transparent); color: inh
 .early-strip .btn.sm { flex: none; }
 .google-btn { width: 100%; background: var(--surface); color: var(--text); border-color: var(--hairline); }
 .google-btn:hover { border-color: var(--text); opacity: 1; }
+.gsi-slot { display: flex; justify-content: center; min-height: 44px; color-scheme: light; }
+.gsi-slot[hidden] { display: none; }
 .or-rule { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--muted); font: 12px var(--font-mono); text-transform: uppercase; }
 .or-rule::before, .or-rule::after { content: ""; flex: 1; height: 1px; background: var(--hairline); }
 .link-btn { background: none; border: 0; padding: 0; color: var(--blue); text-decoration: underline; font-size: inherit; }
