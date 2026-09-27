@@ -32,7 +32,7 @@ GitHub Pages doesn't allow commercial use, so move to Cloudflare Pages (free, co
 ## 2. Supabase: accounts, trials, paywall (15 min)
 1. https://supabase.com → **New project** (region close to your users, e.g. Mumbai). Save the DB password.
 2. **SQL Editor → New query** → paste all of `supabase/schema.sql` → **Run**.
-   This creates synced data, `subscriptions` (30-day trial for every new account), and the rule that
+   This creates synced data, `subscriptions` (14-day trial for every new account), and the rule that
    blocks sync writes once a trial or subscription ends.
 3. **Authentication → URL Configuration**
    - Site URL: `https://theforge.lumid.in`
@@ -119,7 +119,7 @@ Lemon Squeezy is the merchant of record: it charges customers, handles global VA
 
 ## How the plans work
 - **After the trial without paying:** every feature keeps working on the device; export any time.
-- **Pro trial:** creating an account starts 30 days of Pro — sync + cloud backup — no card needed.
+- **Pro trial:** creating an account starts 14 days of Pro — sync + cloud backup — no card needed.
 - **After the trial:** without a subscription, the database refuses sync writes (enforced by Row Level
   Security, so it can't be bypassed from the browser). Local data and export keep working; the account
   can still read its cloud copy.
