@@ -1,7 +1,7 @@
 {
   "name": "Lumid HQ",
   "short_name": "Lumid HQ",
-  "description": "CEO command center for Lumid AI and Lumid Studio.",
+  "description": "The founder command center by Lumid.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
