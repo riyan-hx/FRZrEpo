@@ -43,7 +43,7 @@ GitHub Pages doesn't allow commercial use, so move to Cloudflare Pages (free, co
    - *Confirm signup* — subject "Confirm your Forge account"
    - *Reset password* — subject "Reset your Forge password"
 6. **Authentication → SMTP**: set up custom SMTP before launch (e.g. Resend, free up to ~3k emails/month,
-   sender `hello@lumid.in`). Supabase's built-in email only sends a few emails per hour — not enough for sign-ups.
+   sender `info@lumid.in`). Supabase's built-in email only sends a few emails per hour — not enough for sign-ups.
 7. **Project Settings → API** → copy **Project URL** and **anon / publishable key** into `app.js`:
    ```js
    supabaseUrl: 'https://xxxx.supabase.co',
@@ -70,6 +70,9 @@ Lemon Squeezy is the merchant of record: it charges customers, handles global VA
    - Monthly: **$5 / month**
    - Yearly: **$48 / year**
    In each variant's settings, set the redirect after purchase to `https://theforge.lumid.in/#settings`.
+   **Founding offer:** Store → Discounts → New: code `FOUNDING100`, fixed **$2 off**, Monthly variant only,
+   duration **Forever**, limit **100** redemptions. The app pre-fills it on the monthly checkout. When all 100
+   are used, set `founder.code` to `''` in `app.js` to remove the offer from the app (and edit landing.html).
 3. For each variant: **Share → Checkout link** → copy into `app.js`:
    ```js
    checkout: { monthly: 'https://lumid.lemonsqueezy.com/buy/…', yearly: 'https://lumid.lemonsqueezy.com/buy/…' },
@@ -97,7 +100,7 @@ Lemon Squeezy is the merchant of record: it charges customers, handles global VA
 - **Sentry** (free tier): create a Browser JavaScript project → **Settings → Client Keys → Loader Script** → copy the URL → `sentryLoader: 'https://js.sentry-cdn.com/….min.js'`.
 
 ## 6. Go live checklist
-- [ ] `hello@lumid.in` receives mail (feedback, refunds, privacy requests all point there)
+- [ ] `info@lumid.in` receives mail (feedback, refunds, privacy requests all point there)
 - [ ] Sign in with Google and with an email link on phone + laptop; data syncs both ways
 - [ ] Test purchase in Lemon Squeezy test mode flips your account to Pro; "Manage billing" opens the portal
 - [ ] Set a test user's `trial_ends_at` to yesterday in the Table editor → app shows "sync is paused"
