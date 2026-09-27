@@ -1,5 +1,5 @@
-const CACHE = 'lumid-hq-v14';
-const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.json', 'icon.svg', 'privacy.html'];
+const CACHE = 'lumid-hq-v15';
+const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.json', 'icon.svg', 'privacy.html', 'terms.html', 'refund.html'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Lumid HQ — the founder command center</title>
+  <meta name="description" content="Capture ideas by voice or text, plan your day, track deadlines, goals and KPIs, and keep every reel and video you learn from in one place. 30 days of Pro free.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Lumid HQ — the founder command center">
+  <meta property="og:description" content="Ideas, tasks, daily plans, deadlines and saved videos for founders — in one fast, private app. 30 days of Pro free.">
+  <meta name="twitter:card" content="summary">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Space+Grotesk:wght@400;500&display=swap">
+  <style>
+    :root {
+      --display: "Space Grotesk", Inter, system-ui, sans-serif; --text-font: Inter, Arial, system-ui, sans-serif; --mono: ui-monospace, "SF Mono", Menlo, monospace;
+      --ink: #212121; --primary: #17171c; --muted: #75758a; --rule: #d9d9dd; --stone: #eeece7; --green: #003c33; --coral: #ff7759; --blue: #1863dc;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #fff; color: var(--ink); font: 16px/1.5 var(--text-font); -webkit-font-smoothing: antialiased; }
+    a { color: inherit; }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+    .mono { font: 12px var(--mono); text-transform: uppercase; letter-spacing: .02em; color: var(--muted); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 24px; min-height: 48px; border-radius: 32px; background: var(--primary); color: #fff; text-decoration: none; font-size: 15px; font-weight: 500; border: 1px solid var(--primary); }
+    .btn.ghost { background: transparent; color: var(--ink); border-color: var(--ink); }
+    .btn.light { background: #fff; color: var(--green); border-color: #fff; }
+
+    nav { display: flex; align-items: center; gap: 24px; height: 72px; border-bottom: 1px solid #e5e7eb; }
+    nav .logo { display: flex; align-items: center; gap: 12px; text-decoration: none; font: 500 18px var(--display); }
+    nav .logo img { border-radius: 8px; }
+    nav .links { margin-left: auto; display: flex; align-items: center; gap: 24px; font-size: 15px; }
+    nav .links a:not(.btn) { text-decoration: none; }
+
+    .hero { padding: 96px 0 64px; text-align: center; }
+    .hero h1 { font: 400 clamp(48px, 9vw, 96px)/1 var(--display); letter-spacing: -0.02em; margin: 16px auto 24px; max-width: 12ch; }
+    .hero p { font-size: 20px; color: var(--muted); max-width: 40ch; margin: 0 auto 32px; }
+    .hero .ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .hero .fine { margin-top: 16px; }
+
+    .demo { margin: 32px auto 0; border-radius: 22px; background: var(--green); color: #fff; padding: 40px; text-align: left; position: relative; overflow: hidden; }
+    .demo video { width: 100%; border-radius: 16px; display: block; }
+    .demo h2 { font: 400 44px/1 var(--display); letter-spacing: -0.02em; margin: 0 0 24px; }
+    .demo .field { display: flex; align-items: center; gap: 12px; background: #fff; color: var(--ink); border-radius: 32px; padding: 8px 8px 8px 24px; max-width: 640px; font-size: 17px; }
+    .demo .field span { flex: 1; }
+    .demo .field i { width: 44px; height: 44px; border-radius: 50%; background: var(--coral); display: grid; place-items: center; font-style: normal; color: #fff; }
+    .demo .result { margin-top: 16px; display: inline-flex; gap: 12px; flex-wrap: wrap; }
+    .demo .chip { border: 1px solid rgba(255,255,255,.25); border-radius: 30px; padding: 6px 16px; font-size: 14px; }
+    .demo .chip.on { background: #fff; color: var(--green); }
+    .demo svg.deco { position: absolute; right: -60px; top: -60px; width: 360px; opacity: .18; }
+
+    section { padding: 96px 0; }
+    .section-head { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 40px; flex-wrap: wrap; }
+    .section-head h2 { font: 400 clamp(36px, 6vw, 60px)/1 var(--display); letter-spacing: -0.02em; margin: 8px 0 0; max-width: 14ch; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .feature { border-top: 1px solid var(--rule); padding-top: 24px; }
+    .feature svg { width: 32px; height: 32px; stroke: var(--ink); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    .feature h3 { font: 400 24px/1.3 var(--text-font); margin: 16px 0 8px; }
+    .feature p { color: var(--muted); margin: 0; }
+
+    .band { background: var(--green); color: #fff; border-radius: 22px; padding: 64px 40px; display: grid; grid-template-columns: 1.2fr 1fr; gap: 40px; align-items: center; }
+    .band h2 { font: 400 clamp(36px, 5vw, 56px)/1 var(--display); letter-spacing: -0.02em; margin: 0; }
+    .band ul { list-style: none; padding: 0; margin: 0; }
+    .band li { padding: 16px 0; border-top: 1px solid rgba(255,255,255,.18); }
+
+    .plans { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; max-width: 800px; }
+    .plan { background: var(--stone); border-radius: 16px; padding: 32px; }
+    .plan.pro { background: #fff; border: 1px solid var(--ink); }
+    .plan .price { font: 400 56px/1 var(--display); letter-spacing: -0.02em; margin: 16px 0 8px; }
+    .plan .price small { font: 16px var(--text-font); color: var(--muted); }
+    .plan ul { padding: 0; list-style: none; margin: 24px 0; }
+    .plan li { padding: 8px 0; border-top: 1px solid var(--rule); }
+    .plan li::before { content: "✓  "; color: var(--ink); }
+
+    .faq details { border-top: 1px solid var(--rule); padding: 20px 0; }
+    .faq summary { cursor: pointer; font-size: 20px; list-style: none; }
+    .faq p { color: var(--muted); max-width: 70ch; }
+
+    footer { background: var(--primary); color: #fff; padding: 64px 0; }
+    footer .wrap { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+    footer .coral { color: var(--coral); }
+    footer a { color: #93939f; text-decoration: none; margin-right: 24px; }
+
+    @media (max-width: 800px) {
+      nav .links a:not(.btn) { display: none; }
+      .hero { padding: 64px 0 40px; }
+      .demo { padding: 24px 16px; }
+      .demo h2 { font-size: 32px; }
+      .grid, .plans, .band { grid-template-columns: 1fr; }
+      .band { padding: 40px 24px; }
+      section { padding: 64px 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="logo" href="./landing.html"><img src="icon.svg" alt="" width="32" height="32">Lumid HQ</a>
+      <div class="links">
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a class="btn" href="./">Open app</a>
+      </div>
+    </nav>
+
+    <header class="hero">
+      <p class="mono">For founders running more than one thing</p>
+      <h1>Run everything you're building from one screen.</h1>
+      <p>Capture ideas by voice or text, plan your day, track deadlines and keep every reel and video you learn from — in one fast, private app.</p>
+      <div class="ctas">
+        <a class="btn" href="./">Start free</a>
+        <a class="btn ghost" href="#features">See what's inside</a>
+      </div>
+      <p class="mono fine">30 days of Pro free · No card needed · Works on phone and laptop</p>
+
+      <div class="demo" role="img" aria-label="Lumid HQ quick capture turning a spoken sentence into a calendar event">
+        <svg class="deco" viewBox="0 0 320 320" fill="none" stroke="#fff" aria-hidden="true"><circle cx="160" cy="160" r="40"/><circle cx="160" cy="160" r="80"/><circle cx="160" cy="160" r="120"/><circle cx="160" cy="160" r="158"/><path d="M0 160h320M160 0v320"/></svg>
+        <!-- Replace this mock with your screen recording: <video src="demo.mp4" autoplay muted loop playsinline></video> -->
+        <p class="mono" style="color:rgba(255,255,255,.64)">Say it once</p>
+        <h2>“Coffee with Priya tomorrow 3pm”</h2>
+        <div class="field"><span>Coffee with Priya tomorrow 3pm</span><i>●</i></div>
+        <div class="result"><span class="chip on">Event</span><span class="chip">Tomorrow · 3:00–4:00 PM</span><span class="chip">Added to your calendar</span></div>
+      </div>
+    </header>
+
+    <section id="features">
+      <div class="section-head">
+        <div><p class="mono">What's inside</p><h2>One place for the whole company in your head.</h2></div>
+      </div>
+      <div class="grid">
+        <div class="feature"><svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg><h3>Capture in 3 seconds</h3><p>Type or speak. "Call investor Friday 10am" becomes a task or event with the right date and time.</p></div>
+        <div class="feature"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/></svg><h3>Ideas that go somewhere</h3><p>Move random ideas from Spark to Shipped, score impact vs effort, and turn one into tasks in a tap.</p></div>
+        <div class="feature"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><h3>Plan the day, see the week</h3><p>Write today's top 3, see every deadline counting down, and export to your calendar.</p></div>
+        <div class="feature"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="4"/><path d="m10 9 5 3-5 3z"/></svg><h3>Every reel, finally findable</h3><p>Save Instagram reels, YouTube and articles into collections — then search a word to find the one you meant.</p></div>
+        <div class="feature"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg><h3>Goals, KPIs, decisions</h3><p>OKRs with progress, metrics with trends, a decision log with review dates, and people to follow up.</p></div>
+        <div class="feature"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><h3>Every project, one filter</h3><p>Run two startups and a side project? Tag everything and switch views with one tap.</p></div>
+      </div>
+    </section>
+
+    <div class="band">
+      <h2>Private by default. Fast everywhere.</h2>
+      <ul>
+        <li>Your data lives on your device first — it opens instantly and works offline.</li>
+        <li>Sign in to sync across phone and laptop. Only you can read your data.</li>
+        <li>Export everything any time. Delete your account in one tap.</li>
+      </ul>
+    </div>
+
+    <section id="pricing">
+      <div class="section-head"><div><p class="mono">Pricing</p><h2>Simple, founder-friendly pricing.</h2></div></div>
+      <div class="plans">
+        <div class="plan">
+          <p class="mono">Free</p>
+          <div class="price">$0</div>
+          <p style="color:var(--muted)">Everything, on one device.</p>
+          <ul><li>All features</li><li>Voice capture</li><li>Works offline</li><li>Export any time</li></ul>
+          <a class="btn ghost" href="./">Start free</a>
+        </div>
+        <div class="plan pro">
+          <p class="mono">Pro · 30 days free</p>
+          <div class="price">$5<small> / month</small></div>
+          <p style="color:var(--muted)">or $48 / year — 2 months free</p>
+          <ul><li>Everything in Free</li><li>Sync across all your devices</li><li>Automatic cloud backup</li><li>Cancel any time · 14-day refund</li></ul>
+          <a class="btn" href="./">Start 30-day trial</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="faq">
+      <div class="section-head"><div><p class="mono">FAQ</p><h2>Questions</h2></div></div>
+      <details><summary>Do I need a card for the trial?</summary><p>No. Create an account and you get 30 days of Pro. If you don't subscribe, nothing is charged — syncing just pauses and your data stays on your device.</p></details>
+      <details><summary>Is it an app I install?</summary><p>It runs in your browser and installs like an app: on iPhone, Safari → Share → Add to Home Screen; on Android, Chrome → Install app.</p></details>
+      <details><summary>Who can see my notes?</summary><p>Only you. Without an account nothing leaves your device. With an account, database rules ensure each account can only read its own data.</p></details>
+      <details><summary>Can I cancel or get a refund?</summary><p>Cancel any time from Manage billing. New subscriptions have a 14-day no-questions refund — see the <a href="refund.html">refund policy</a>.</p></details>
+    </section>
+  </div>
+
+  <footer>
+    <div class="wrap">
+      <div><p class="coral mono">Built by Lumid</p><p style="font:400 28px/1.1 var(--display);margin:8px 0 0">Stop losing ideas.</p></div>
+      <div><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="refund.html">Refunds</a><a href="mailto:hello@lumid.in">Contact</a></div>
+    </div>
+  </footer>
+</body>
+</html>
