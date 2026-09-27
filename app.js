@@ -1,7 +1,7 @@
 'use strict';
 
 /* =========================================================
-   Lumid HQ — CEO command center (vanilla JS, localStorage)
+   The Forge — CEO command center (vanilla JS, localStorage)
    ========================================================= */
 
 const STORE_KEY = 'lumid-hq-v1';
@@ -12,7 +12,7 @@ const LABS_KEY = 'lumid-hq-labs';
 const LAUNCH = {
   earlyAccessDays: 30,
   trialDays: 30,
-  feedbackUrl: 'mailto:hello@lumid.in?subject=Lumid%20HQ%20feedback',
+  feedbackUrl: 'mailto:hello@lumid.in?subject=The%20Forge%20feedback',
   privacyUrl: 'privacy.html',
   termsUrl: 'terms.html',
   refundUrl: 'refund.html',
@@ -138,7 +138,7 @@ function seed(names = []) {
     { id: uid(), title: `Draft ${v2} launch announcement`, venture: v2, due: addDays(t, 2), priority: 'p2', done: false, createdAt: Date.now() },
   ];
   db.notes = [
-    { id: uid(), title: 'Welcome to Lumid HQ 👋', body: `Your founder command center.\n\n• Capture anything from Today — try "task: call investor #${tag} tomorrow 3pm".\n• Tap the mic to capture by voice.\n• Move ideas from Spark → Shipped and turn them into tasks with one tap.\n• Plan each day, track deadlines, goals, KPIs, decisions and people.\n• Save reels and videos into collections under Resources.\n• Everything is saved on this device — back it up from Settings.\n\nInstall it: open in your phone browser → Share → "Add to Home Screen".\n\nThis sample data is just to explore — delete anything, or reset from Settings.`, venture: 'General', pinned: true, updatedAt: Date.now() },
+    { id: uid(), title: 'Welcome to The Forge 👋', body: `Your founder command center.\n\n• Capture anything from Today — try "task: call investor #${tag} tomorrow 3pm".\n• Tap the mic to capture by voice.\n• Move ideas from Spark → Shipped and turn them into tasks with one tap.\n• Plan each day, track deadlines, goals, KPIs, decisions and people.\n• Save reels and videos into collections under Resources.\n• Everything is saved on this device — back it up from Settings.\n\nInstall it: open in your phone browser → Share → "Add to Home Screen".\n\nThis sample data is just to explore — delete anything, or reset from Settings.`, venture: 'General', pinned: true, updatedAt: Date.now() },
   ];
   db.events = [
     { id: uid(), title: 'Weekly planning', date: t, start: '10:00', end: '11:00', type: 'meeting', venture: 'General', notes: '' },
@@ -504,7 +504,7 @@ function renderNav() {
     </button>`).join('');
   $('#venture-filter').hidden = state.view === 'settings';
   $('#view-title').innerHTML = state.view === 'today'
-    ? `<span class="brand-mark" aria-hidden="true">${icon('sparkle')}</span>Lumid`
+    ? `<span class="brand-mark" aria-hidden="true">${icon('sparkle')}</span>The Forge`
     : esc(VIEWS.find((v) => v.id === state.view).label);
   $('.fab').hidden = state.view === 'settings';
 }
@@ -512,7 +512,7 @@ function renderNav() {
 function render() {
   renderNav();
   $('#view').innerHTML = RENDERERS[state.view]();
-  document.title = `${VIEWS.find((v) => v.id === state.view).label} · Lumid HQ`;
+  document.title = `${VIEWS.find((v) => v.id === state.view).label} · The Forge`;
 }
 
 function go(view) {
@@ -935,7 +935,7 @@ function deadlineRow(date, title, meta, edit) {
 function exportICS() {
   const stamp = (date, time) => date.replace(/-/g, '') + (time ? 'T' + time.replace(':', '') + '00' : '');
   const escICS = (s) => String(s || '').replace(/[\\;,]/g, (c) => '\\' + c).replace(/\n/g, '\\n');
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Lumid HQ//EN'];
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//The Forge//EN'];
   byVenture(db.events).forEach((e) => {
     lines.push('BEGIN:VEVENT', `UID:${e.id}@lumid-hq`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`);
     if (e.start) {
@@ -1499,7 +1499,7 @@ async function importJSON(file) {
     store.save();
     render();
     toast('Backup restored');
-  } catch { toast('That file is not a valid Lumid HQ backup'); }
+  } catch { toast('That file is not a valid Forge backup'); }
 }
 
 /* ---------- Theme ---------- */
@@ -1540,7 +1540,7 @@ const ACTIONS = {
     store.save(); render();
   },
   ics: exportICS,
-  export: () => download(`lumid-hq-backup-${today()}.json`, JSON.stringify(db, null, 2)),
+  export: () => download(`the-forge-backup-${today()}.json`, JSON.stringify(db, null, 2)),
   reset: () => {
     if (!confirm('Erase ALL data on this device? Export a backup first if unsure.')) return;
     db = emptyDb(); store.save(); render(); toast('All data erased');
@@ -1550,7 +1550,7 @@ const ACTIONS = {
   'signin-google': () => cloud.signInWithGoogle(),
   upgrade: () => openUpgrade(),
   'delete-account': () => {
-    if (!confirm('Delete your Lumid HQ account and all its data? Any subscription is cancelled. This cannot be undone — use Export JSON first if you want a copy.')) return;
+    if (!confirm('Delete your Forge account and all its data? Any subscription is cancelled. This cannot be undone — use Export JSON first if you want a copy.')) return;
     if (prompt('Type DELETE to confirm') !== 'DELETE') return toast('Account not deleted');
     cloud.deleteAccount();
   },
@@ -2060,7 +2060,7 @@ function planLine() {
 
 function openSignIn(reason = '') {
   if (!cloud.client) return toast(navigator.onLine ? 'Accounts are loading — try again in a moment' : 'You’re offline');
-  openModal('Sign in to Lumid HQ', `
+  openModal('Sign in to The Forge', `
     <p class="welcome-lead">${reason || `Sync your ideas, tasks and plans across phone and laptop. New accounts get ${LAUNCH.trialDays} days of Pro free — no card needed.`}</p>
     ${cloud.google ? `<button class="btn google-btn" data-action="signin-google">${GOOGLE_MARK} Continue with Google</button>
     <div class="or-rule"><span>or</span></div>` : ''}
@@ -2086,7 +2086,7 @@ function openUpgrade() {
     <ul class="plan-perks">
       <li>Sync across all your devices</li>
       <li>Automatic cloud backup</li>
-      <li>Everything in Lumid HQ, unlimited</li>
+      <li>Everything in The Forge, unlimited</li>
       <li>Support an indie product — cancel any time</li>
     </ul>
     <div class="plan-grid">
@@ -2505,7 +2505,7 @@ function planStrip() {
 }
 
 function openWelcome() {
-  openModal('Welcome to Lumid HQ', `
+  openModal('Welcome to The Forge', `
     <form id="welcome-form" data-form="welcome">
       <p class="welcome-lead">Your command center for everything you're building — ideas, tasks, daily plans, deadlines and saved videos in one place.</p>
       <div class="field"><label for="welcome-projects">What are you working on?</label>
@@ -2566,7 +2566,7 @@ function authView() {
   const error = `<p class="auth-error" id="auth-error" role="alert" hidden></p>`;
   const views = {
     loading: () => `<div class="auth-loading"><span class="spinner dark"></span></div>`,
-    offline: () => `<h2>You’re offline</h2><p class="auth-sub">Connect to the internet to sign in. Once you’re signed in, Lumid HQ works offline.</p>
+    offline: () => `<h2>You’re offline</h2><p class="auth-sub">Connect to the internet to sign in. Once you’re signed in, The Forge works offline.</p>
       <button class="btn" type="button" data-action="auth-retry">Try again</button>`,
     signup: () => `<h2>Create your account</h2><p class="auth-sub">Start with full access — nothing to pay today.</p>
       <div class="trial-card">
@@ -2582,7 +2582,7 @@ function authView() {
         <button class="btn auth-submit" type="submit">Create account</button>
       </form>
       ${switcher('Already have an account?', 'signin', 'Sign in')}${legal}`,
-    signin: () => `<h2>Welcome back</h2><p class="auth-sub">Sign in to your Lumid HQ account.</p>
+    signin: () => `<h2>Welcome back</h2><p class="auth-sub">Sign in to your Forge account.</p>
       ${notice ? `<p class="confirm-note">${notice}</p>` : ''}
       ${google}
       <form data-form="auth-signin" novalidate>
@@ -2592,7 +2592,7 @@ function authView() {
         ${error}
         <button class="btn auth-submit" type="submit">Sign in</button>
       </form>
-      ${switcher('New to Lumid HQ?', 'signup', 'Create an account')}${legal}`,
+      ${switcher('New to The Forge?', 'signup', 'Create an account')}${legal}`,
     verify: () => `<h2>Check your email</h2>
       <p class="auth-sub">We sent a verification link to <b>${esc(email)}</b>. Tap it to finish creating your account — it may take a minute, and check spam just in case.</p>
       ${error}
@@ -2613,7 +2613,7 @@ function authView() {
       </form>`,
   };
   return `<div class="auth-panel">
-      <div class="auth-brand"><img src="icon.svg" alt="" width="40" height="40"><div><strong>Lumid HQ</strong><small>by Lumid</small></div></div>
+      <div class="auth-brand"><img src="icon.svg" alt="" width="40" height="40"><div><strong>The Forge</strong><small>by Lumid</small></div></div>
       <span class="trial-badge">${LAUNCH.trialDays}-day free trial · No card</span>
       <h1>Run everything you’re building from one screen.</h1>
       <ul><li>Capture ideas by voice or text</li><li>Plan your day, track every deadline</li><li>Save reels and videos into searchable collections</li></ul>

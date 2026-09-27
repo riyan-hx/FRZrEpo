@@ -1,4 +1,4 @@
-# Lumid HQ
+# The Forge
 
 CEO command center for **Lumid AI** and **Lumid Studio** — capture ideas, turn them into work, and run the company from one mobile-friendly dashboard.
 

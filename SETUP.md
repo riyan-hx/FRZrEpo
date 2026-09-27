@@ -1,4 +1,4 @@
-# Launching Lumid HQ
+# Launching The Forge (theforge.lumid.in)
 
 Everything is built. Turning on accounts, trials and payments is configuration only — fill in the
 `LAUNCH` block at the top of `app.js`. Until then the app runs exactly as today (local-only, free).
@@ -7,16 +7,16 @@ Order: **1 Hosting → 2 Supabase → 3 Google sign-in → 4 Lemon Squeezy → 5
 
 ---
 
-## 1. Hosting on Cloudflare Pages + hq.lumid.in (15 min)
+## 1. Hosting on Cloudflare Pages + theforge.lumid.in (15 min)
 GitHub Pages doesn't allow commercial use, so move to Cloudflare Pages (free, commercial OK).
 
 1. https://dash.cloudflare.com → **Workers & Pages → Create → Pages → Connect to Git** → pick `riyan-hx/FRZrEpo`.
 2. Build settings: Framework **None**, build command **`sh scripts/build.sh`**, output directory **`dist`**. Deploy.
    This publishes only the app files — README, SETUP, `supabase/` and scripts are never served.
-3. **Custom domains → Set up a domain → `hq.lumid.in`** and follow the DNS instructions.
+3. **Custom domains → Set up a domain → `theforge.lumid.in`** and follow the DNS instructions.
    (If lumid.in's DNS isn't on Cloudflare, add the CNAME it shows at your registrar.)
-4. The app is at `https://hq.lumid.in/`, the landing page at `https://hq.lumid.in/landing.html`
-   (or copy `landing.html` to `lumid.in/hq`).
+4. The app is at `https://theforge.lumid.in/`, the landing page at `https://theforge.lumid.in/landing.html`
+   (or copy `landing.html` to `lumid.in/forge`).
 5. Once live, turn off GitHub Pages (repo Settings → Pages → Source: None).
 6. Make the repository **private** (repo Settings → General → Danger zone → Change visibility).
    Cloudflare Pages keeps deploying from a private repo, and your code, history and pull requests stop being public.
@@ -29,13 +29,13 @@ GitHub Pages doesn't allow commercial use, so move to Cloudflare Pages (free, co
    This creates synced data, `subscriptions` (30-day trial for every new account), and the rule that
    blocks sync writes once a trial or subscription ends.
 3. **Authentication → URL Configuration**
-   - Site URL: `https://hq.lumid.in`
-   - Redirect URLs: add `https://hq.lumid.in/**`
+   - Site URL: `https://theforge.lumid.in`
+   - Redirect URLs: add `https://theforge.lumid.in/**`
 4. **Authentication → Sign In / Providers → Email**: enabled, **Confirm email ON**, minimum password length **8**.
    Sign-up is required: anyone not signed in sees the Create account / Sign in screen first.
 5. **Authentication → Emails → Templates** — brand these (they're the first emails users get):
-   - *Confirm signup* — subject "Confirm your Lumid HQ account"
-   - *Reset password* — subject "Reset your Lumid HQ password"
+   - *Confirm signup* — subject "Confirm your Forge account"
+   - *Reset password* — subject "Reset your Forge password"
 6. **Authentication → SMTP**: set up custom SMTP before launch (e.g. Resend, free up to ~3k emails/month,
    sender `hello@lumid.in`). Supabase's built-in email only sends a few emails per hour — not enough for sign-ups.
 7. **Project Settings → API** → copy **Project URL** and **anon / publishable key** into `app.js`:
@@ -47,8 +47,9 @@ GitHub Pages doesn't allow commercial use, so move to Cloudflare Pages (free, co
 8. Upgrade to **Pro ($25/mo)** once people pay you (daily backups, no pausing).
 
 ## 3. "Continue with Google" (10 min)
+> App name on the consent screen: **The Forge**. Authorized domain: `lumid.in`.
 1. https://console.cloud.google.com → create a project → **APIs & Services → OAuth consent screen**
-   (External; app name "Lumid HQ"; support email; authorized domain `lumid.in`; add privacy/terms URLs).
+   (External; app name "The Forge"; support email; authorized domain `lumid.in`; add privacy/terms URLs).
 2. **Credentials → Create credentials → OAuth client ID → Web application**
    - Authorized redirect URI: `https://xxxx.supabase.co/auth/v1/callback` (shown in Supabase under Authentication → Providers → Google)
 3. Paste the Client ID and Secret into **Supabase → Authentication → Providers → Google** → Enable.
@@ -59,10 +60,10 @@ GitHub Pages doesn't allow commercial use, so move to Cloudflare Pages (free, co
 Lemon Squeezy is the merchant of record: it charges customers, handles global VAT/GST and invoices, and pays you out.
 
 1. https://lemonsqueezy.com → create a store (e.g. `lumid`). Complete identity + payout setup and **request store activation** — this can take a few days, so do it first.
-2. **Products → New product** "Lumid HQ Pro" → type **Subscription** with two variants:
+2. **Products → New product** "The Forge Pro" → type **Subscription** with two variants:
    - Monthly: **$5 / month**
    - Yearly: **$48 / year**
-   In each variant's settings, set the redirect after purchase to `https://hq.lumid.in/#settings`.
+   In each variant's settings, set the redirect after purchase to `https://theforge.lumid.in/#settings`.
 3. For each variant: **Share → Checkout link** → copy into `app.js`:
    ```js
    checkout: { monthly: 'https://lumid.lemonsqueezy.com/buy/…', yearly: 'https://lumid.lemonsqueezy.com/buy/…' },
@@ -86,7 +87,7 @@ Lemon Squeezy is the merchant of record: it charges customers, handles global VA
    **Supabase → Table editor → subscriptions** shows `active` for your user. Then switch to live.
 
 ## 5. Analytics & error tracking (10 min, optional)
-- **Cloudflare Web Analytics** (free, no cookies): Cloudflare → Analytics & Logs → Web Analytics → add `hq.lumid.in` → copy the token → `analyticsToken: '…'`.
+- **Cloudflare Web Analytics** (free, no cookies): Cloudflare → Analytics & Logs → Web Analytics → add `theforge.lumid.in` → copy the token → `analyticsToken: '…'`.
 - **Sentry** (free tier): create a Browser JavaScript project → **Settings → Client Keys → Loader Script** → copy the URL → `sentryLoader: 'https://js.sentry-cdn.com/….min.js'`.
 
 ## 6. Go live checklist
