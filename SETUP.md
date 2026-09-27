@@ -31,16 +31,20 @@ GitHub Pages doesn't allow commercial use, so move to Cloudflare Pages (free, co
 3. **Authentication → URL Configuration**
    - Site URL: `https://hq.lumid.in`
    - Redirect URLs: add `https://hq.lumid.in/**`
-4. **Authentication → Emails**: optionally customise the "Magic Link" template (subject: "Your Lumid HQ sign-in link").
-   For launch volume, set up custom SMTP (e.g. Resend, free up to ~3k emails/month) under **Authentication → SMTP**
-   — Supabase's built-in email is rate-limited.
-5. **Project Settings → API** → copy **Project URL** and **anon / publishable key** into `app.js`:
+4. **Authentication → Sign In / Providers → Email**: enabled, **Confirm email ON**, minimum password length **8**.
+   Sign-up is required: anyone not signed in sees the Create account / Sign in screen first.
+5. **Authentication → Emails → Templates** — brand these (they're the first emails users get):
+   - *Confirm signup* — subject "Confirm your Lumid HQ account"
+   - *Reset password* — subject "Reset your Lumid HQ password"
+6. **Authentication → SMTP**: set up custom SMTP before launch (e.g. Resend, free up to ~3k emails/month,
+   sender `hello@lumid.in`). Supabase's built-in email only sends a few emails per hour — not enough for sign-ups.
+7. **Project Settings → API** → copy **Project URL** and **anon / publishable key** into `app.js`:
    ```js
    supabaseUrl: 'https://xxxx.supabase.co',
    supabaseKey: 'eyJ… or sb_publishable_…',
    ```
    Both are public by design. **Never** put the `service_role` / secret key in the app.
-6. Upgrade to **Pro ($25/mo)** once people pay you (daily backups, no pausing).
+8. Upgrade to **Pro ($25/mo)** once people pay you (daily backups, no pausing).
 
 ## 3. "Continue with Google" (10 min)
 1. https://console.cloud.google.com → create a project → **APIs & Services → OAuth consent screen**
@@ -92,8 +96,18 @@ Lemon Squeezy is the merchant of record: it charges customers, handles global VA
 - [ ] Privacy, Terms and Refunds pages open from Settings and the landing page
 - [ ] Record the demo video and swap it into `landing.html` (see the comment in the demo block)
 
+## How accounts work
+- **Sign-up is required** once `supabaseUrl`/`supabaseKey` are set: Create account (name, email, password
+  → verification email) or Continue with Google. "Forgot password?" emails a reset link that opens a
+  "Set a new password" screen.
+- New accounts go straight into "What are you working on?" setup, then the app.
+- Signed-in users keep working offline; the sign-in screen only needs a connection the first time.
+- Signing out removes that device's copy (it warns first if changes haven't synced), so the next person
+  to sign in on a shared device never sees or uploads someone else's data.
+- The landing page links to `./?mode=signup` and `./?mode=signin`.
+
 ## How the plans work
-- **Free (no account):** every feature, stored on one device, works offline, export any time.
+- **After the trial without paying:** every feature keeps working on the device; export any time.
 - **Pro trial:** creating an account starts 30 days of Pro — sync + cloud backup — no card needed.
 - **After the trial:** without a subscription, the database refuses sync writes (enforced by Row Level
   Security, so it can't be bypassed from the browser). Local data and export keep working; the account
