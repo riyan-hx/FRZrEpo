@@ -4,6 +4,6 @@
 set -e
 rm -rf dist
 mkdir -p dist
-cp index.html app.js styles.css sw.js manifest.json icon.svg \
+cp index.html app.js styles.css sw.js manifest.json icon.svg icon-180.png icon-192.png icon-512.png \
    landing.html privacy.html terms.html refund.html _headers dist/
 echo "Built dist/ with $(ls dist | wc -l) files"

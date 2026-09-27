@@ -1336,8 +1336,11 @@ function viewSettings() {
       </div>
     </div>
     <div class="card">
-      <div class="card-head"><h3>Install on your phone</h3></div>
-      <p class="small muted">iPhone: Safari → Share → <b>Add to Home Screen</b>.<br>Android: Chrome → ⋮ → <b>Install app</b>.<br>Works offline once installed.</p>
+      <div class="card-head"><h3>Install the app</h3></div>
+      ${install.standalone
+        ? '<p class="small muted">Installed — you’re using The Forge as an app.</p>'
+        : `<p class="small muted">Add The Forge to your home screen: it opens full screen, one tap away, and works offline.</p>
+      <div class="row"><button class="btn" data-action="install">${icon('download')} Install app</button></div>`}
     </div>
     <div class="card">
       <div class="card-head"><h3>Danger zone</h3></div>
@@ -1525,6 +1528,9 @@ const ACTIONS = {
   search: openSearch,
   more: openMore,
   close: closeModal,
+  install: () => openInstall(),
+  'install-now': () => install.promptNative(),
+  'install-copy': () => navigator.clipboard?.writeText(location.origin + '/').then(() => toast('Link copied — paste it in Safari or Chrome')),
   theme() {
     const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
     applyTheme(next);
@@ -2643,6 +2649,117 @@ function finishWelcome(form) {
   toast('You’re all set — capture your first idea');
 }
 
+/* ---------- Install to home screen ---------- */
+const INSTALL_KEY = 'lumid-hq-install';
+const INSTALL_SNOOZE_MS = 7 * 864e5;
+const GLYPHS = {
+  share: '<path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/>',
+  addSquare: '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/>',
+  kebab: '<circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>',
+  dots: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
+  phone: '<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/>',
+  check: '<path d="m5 12 5 5 9-10"/>',
+};
+const glyph = (name) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${GLYPHS[name]}</svg>`;
+
+const install = {
+  deferred: null,
+  get standalone() { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; },
+  get platform() {
+    const ua = navigator.userAgent;
+    if (/FBAN|FBAV|Instagram|LinkedInApp|Snapchat|musical_ly|Bytedance|Line\//i.test(ua)) return 'inapp';
+    if (/iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'ios';
+    if (/Android/.test(ua)) return 'android';
+    return 'desktop';
+  },
+  memory() { try { return JSON.parse(localStorage.getItem(INSTALL_KEY)) || {}; } catch { return {}; } },
+  remember(patch) { try { localStorage.setItem(INSTALL_KEY, JSON.stringify({ ...this.memory(), ...patch })); } catch {} },
+
+  // Phones only, once a week at most, and only while nothing else is on screen.
+  schedule() {
+    if (this.standalone || this.platform === 'desktop') return;
+    const { installed, snoozedUntil = 0 } = this.memory();
+    if (installed || Date.now() < snoozedUntil) return;
+    let tries = 0;
+    const timer = setInterval(() => {
+      if (++tries > 20 || this.standalone) return clearInterval(timer);
+      if (modal.open || !$('#auth').hidden || document.visibilityState !== 'visible') return;
+      clearInterval(timer);
+      openInstall();
+    }, 15000);
+  },
+
+  async promptNative() {
+    if (!this.deferred) return;
+    this.deferred.prompt();
+    const { outcome } = await this.deferred.userChoice;
+    this.deferred = null;
+    if (outcome === 'accepted') { this.remember({ installed: true }); closeModal(); }
+  },
+};
+
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); install.deferred = e; });
+window.addEventListener('appinstalled', () => {
+  install.remember({ installed: true });
+  install.deferred = null;
+  toast('The Forge is on your home screen');
+});
+
+function installSteps() {
+  const ua = navigator.userAgent;
+  const step = (g, html) => `<li><span class="install-glyph">${glyph(g)}</span><span>${html}</span></li>`;
+  switch (install.platform) {
+    case 'ios': {
+      const safari = !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+      return [
+        step('share', safari ? 'Tap <b>Share</b> in Safari’s toolbar <small>(on newer iPhones, tap <b>⋯</b> first)</small>' : 'Tap <b>Share</b> next to the address bar'),
+        step('addSquare', 'Scroll down and tap <b>Add to Home Screen</b>'),
+        step('check', 'Tap <b>Add</b> — The Forge appears on your home screen'),
+      ];
+    }
+    case 'android':
+      return [
+        step('kebab', 'Tap the <b>⋮</b> menu in the top corner'),
+        step('addSquare', 'Tap <b>Install app</b> or <b>Add to Home screen</b>'),
+        step('check', 'Tap <b>Install</b> — The Forge appears with your apps'),
+      ];
+    case 'inapp':
+      return [
+        step('dots', 'Tap <b>⋯</b> or <b>⋮</b> at the top of this screen'),
+        step('share', 'Choose <b>Open in browser</b> (Safari or Chrome)'),
+        step('addSquare', 'Then use <b>Add to Home Screen</b> from there'),
+      ];
+    default:
+      return [
+        step('addSquare', 'In Chrome or Edge, click the <b>install icon</b> at the right of the address bar'),
+        step('phone', 'On your phone, open <b>theforge.lumid.in</b> and tap <b>Install app</b> in Settings'),
+      ];
+  }
+}
+
+function openInstall() {
+  install.remember({ snoozedUntil: Date.now() + INSTALL_SNOOZE_MS });
+  const native = Boolean(install.deferred);
+  const inapp = install.platform === 'inapp';
+  const steps = installSteps();
+  openModal('Get the app', `
+    <div class="install-hero">
+      <img src="icon-192.png" alt="" width="64" height="64">
+      <div><strong>The Forge</strong><span>by Lumid · theforge.lumid.in</span></div>
+    </div>
+    <ul class="install-perks">
+      <li>${glyph('check')} Opens full screen, like a native app</li>
+      <li>${glyph('check')} One tap from your home screen</li>
+      <li>${glyph('check')} Works offline — capture ideas anywhere</li>
+    </ul>
+    ${native ? '' : `<p class="section-title">${inapp ? 'Open in your browser first' : `Add it in ${steps.length} ${install.platform === 'desktop' ? 'steps' : 'taps'}`}</p>
+    <ol class="install-steps">${steps.join('')}</ol>`}`,
+    `<button class="btn ghost" data-action="close">Not now</button><span class="spacer"></span>
+    ${native ? '<button class="btn" data-action="install-now">Install app</button>'
+      : inapp ? '<button class="btn" data-action="install-copy">Copy link</button>'
+      : '<button class="btn" data-action="close">Got it</button>'}`);
+}
+
 /* ---------- Sign-up & sign-in screen (required when accounts are on) ---------- */
 const HAS_ACCOUNT_KEY = 'lumid-hq-has-account';
 const authState = { mode: 'signup', email: '', notice: '' };
@@ -2840,6 +2957,7 @@ if (!launchMeta.get().firstSeen) launchMeta.set({ firstSeen: today() });
 if (HOSTED) showAuth('loading');
 else if (firstRun) { render(); openWelcome(); }
 cloud.init();
+install.schedule();
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible' || !cloud.user) return;
   await cloud.loadPlan(); // picks up a payment made in another tab
