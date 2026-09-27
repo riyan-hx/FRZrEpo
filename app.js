@@ -5,6 +5,11 @@
    ========================================================= */
 
 const STORE_KEY = 'lumid-hq-v1';
+const META_KEY = 'lumid-hq-meta';
+const LABS_KEY = 'lumid-hq-labs';
+// Public launch settings. AI and cloud sync are "labs" features: hidden for new users,
+// kept on for anyone who already set them up or opens the app with ?labs=1.
+const LAUNCH = { earlyAccessDays: 30, feedbackUrl: 'mailto:hello@lumid.in?subject=Lumid%20HQ%20feedback', privacyUrl: 'privacy.html' };
 const THEME_KEY = 'lumid-hq-theme';
 const VENTURE_COLORS = ['#5e5ce6', '#30b0c7', '#ff9f0a', '#ff375f', '#0a84ff', '#30d158'];
 
@@ -97,40 +102,43 @@ const hydrateIcons = (root = document) => $$('[data-icon]', root).forEach((el) =
 
 /* ---------- Data ---------- */
 const emptyDb = () => ({
-  ventures: ['Lumid AI', 'Lumid Studio', 'General'],
+  ventures: ['General'],
   ideas: [], tasks: [], notes: [], events: [], goals: [], metrics: [], decisions: [], people: [], resources: [], collections: [],
   plans: {},
 });
 
-function seed() {
+function seed(names = []) {
+  const [v1 = 'My startup', v2 = 'Side project'] = names;
   const db = emptyDb();
+  db.ventures = [v1, v2, 'General'];
   const t = today();
+  const tag = slug(v1.split(' ').pop());
   db.ideas = [
-    { id: uid(), title: 'Voice-first assistant mode for Lumid AI', body: 'Let users talk to Lumid hands-free. Start with a push-to-talk prototype.', venture: 'Lumid AI', stage: 'exploring', impact: 5, effort: 3, createdAt: Date.now() },
-    { id: uid(), title: 'Template marketplace for Lumid Studio', body: 'Creators sell presets & templates; we take a rev share.', venture: 'Lumid Studio', stage: 'spark', impact: 4, effort: 4, createdAt: Date.now() },
-    { id: uid(), title: 'Shared workspace between AI & Studio', body: 'One login, one project space across both products.', venture: 'General', stage: 'spark', impact: 4, effort: 5, createdAt: Date.now() },
+    { id: uid(), title: `Referral program for ${v1}`, body: 'Reward early users for inviting friends. Start with a simple invite link.', venture: v1, stage: 'exploring', impact: 5, effort: 3, createdAt: Date.now() },
+    { id: uid(), title: `Template library for ${v2}`, body: 'Ready-made templates so new users get value in minutes.', venture: v2, stage: 'spark', impact: 4, effort: 4, createdAt: Date.now() },
+    { id: uid(), title: 'Weekly founder update email', body: 'Share wins, numbers and asks with investors and mentors.', venture: 'General', stage: 'spark', impact: 4, effort: 2, createdAt: Date.now() },
   ];
   db.tasks = [
-    { id: uid(), title: 'Review Lumid AI onboarding funnel', venture: 'Lumid AI', due: t, priority: 'p1', done: false, createdAt: Date.now() },
-    { id: uid(), title: 'Draft Lumid Studio launch announcement', venture: 'Lumid Studio', due: addDays(t, 2), priority: 'p2', done: false, createdAt: Date.now() },
+    { id: uid(), title: `Review ${v1} onboarding funnel`, venture: v1, due: t, priority: 'p1', done: false, createdAt: Date.now() },
+    { id: uid(), title: `Draft ${v2} launch announcement`, venture: v2, due: addDays(t, 2), priority: 'p2', done: false, createdAt: Date.now() },
   ];
   db.notes = [
-    { id: uid(), title: 'Welcome to Lumid HQ 👋', body: 'Your CEO command center.\n\n• Capture any idea instantly from Today (try "task: call investor #ai !tomorrow").\n• Move ideas from Spark → Shipped on the Ideas board, and turn them into tasks with one tap.\n• Track goals (OKRs), KPIs, decisions and key people.\n• Everything is saved on this device. Back up from Settings.\n\nInstall it: open in your phone browser → Share → "Add to Home Screen".', venture: 'General', pinned: true, updatedAt: Date.now() },
+    { id: uid(), title: 'Welcome to Lumid HQ 👋', body: `Your founder command center.\n\n• Capture anything from Today — try "task: call investor #${tag} tomorrow 3pm".\n• Tap the mic to capture by voice.\n• Move ideas from Spark → Shipped and turn them into tasks with one tap.\n• Plan each day, track deadlines, goals, KPIs, decisions and people.\n• Save reels and videos into collections under Resources.\n• Everything is saved on this device — back it up from Settings.\n\nInstall it: open in your phone browser → Share → "Add to Home Screen".\n\nThis sample data is just to explore — delete anything, or reset from Settings.`, venture: 'General', pinned: true, updatedAt: Date.now() },
   ];
   db.events = [
-    { id: uid(), title: 'Weekly leadership sync', date: t, start: '10:00', end: '11:00', type: 'meeting', venture: 'General', notes: '' },
-    { id: uid(), title: 'Deep work: product strategy', date: addDays(t, 1), start: '09:00', end: '11:00', type: 'focus', venture: 'Lumid AI', notes: '' },
+    { id: uid(), title: 'Weekly planning', date: t, start: '10:00', end: '11:00', type: 'meeting', venture: 'General', notes: '' },
+    { id: uid(), title: 'Deep work: product strategy', date: addDays(t, 1), start: '09:00', end: '11:00', type: 'focus', venture: v1, notes: '' },
   ];
   db.resources = [
     { id: uid(), url: 'https://www.youtube.com/watch?v=ii1jcLg-eIQ', platform: 'youtube', title: 'How to Start a Startup — YC lecture', status: 'watch', venture: 'General', notes: '', createdAt: Date.now() },
   ];
   db.plans = { [t]: '1. Ship onboarding fixes\n2. Investor follow-ups\n3. 2h deep work on roadmap' };
   db.goals = [
-    { id: uid(), title: 'Grow Lumid AI to product-market fit', venture: 'Lumid AI', quarter: quarterOf(), keyResults: [{ text: 'Reach 1,000 weekly active users', progress: 35 }, { text: '40% week-4 retention', progress: 20 }] },
+    { id: uid(), title: `Reach product-market fit for ${v1}`, venture: v1, quarter: quarterOf(), keyResults: [{ text: 'Reach 1,000 weekly active users', progress: 35 }, { text: '40% week-4 retention', progress: 20 }] },
   ];
   db.metrics = [
-    { id: uid(), name: 'Weekly active users', venture: 'Lumid AI', unit: '', target: 1000, entries: [[addDays(t, -21), 180], [addDays(t, -14), 240], [addDays(t, -7), 290], [t, 350]].map(([date, value]) => ({ date, value })) },
-    { id: uid(), name: 'MRR', venture: 'Lumid Studio', unit: '$', target: 10000, entries: [[addDays(t, -21), 1200], [addDays(t, -14), 1500], [addDays(t, -7), 1450], [t, 1900]].map(([date, value]) => ({ date, value })) },
+    { id: uid(), name: 'Weekly active users', venture: v1, unit: '', target: 1000, entries: [[addDays(t, -21), 180], [addDays(t, -14), 240], [addDays(t, -7), 290], [t, 350]].map(([date, value]) => ({ date, value })) },
+    { id: uid(), name: 'MRR', venture: v2, unit: '$', target: 10000, entries: [[addDays(t, -21), 1200], [addDays(t, -14), 1500], [addDays(t, -7), 1450], [t, 1900]].map(([date, value]) => ({ date, value })) },
   ];
   return db;
 }
@@ -150,8 +158,8 @@ const store = {
   load() {
     try {
       const raw = localStorage.getItem(STORE_KEY);
-      return raw ? normalizeDb(JSON.parse(raw)) : seed();
-    } catch { return seed(); }
+      return raw ? normalizeDb(JSON.parse(raw)) : null;
+    } catch { return null; }
   },
   save() {
     saveLocal();
@@ -159,7 +167,8 @@ const store = {
   },
 };
 
-let db = store.load();
+const firstRun = !store.load();
+let db = store.load() || emptyDb();
 const state = { view: 'today', venture: 'All', calMonth: today().slice(0, 7), calDay: today(), calMode: 'month', metricRange: '6m', notesQuery: '', tasksTab: 'open', resTab: 'watch', resQuery: '', resCollection: 'all' };
 
 const ventureColor = (v) => VENTURE_COLORS[Math.max(0, db.ventures.indexOf(v)) % VENTURE_COLORS.length];
@@ -523,6 +532,7 @@ function viewToday() {
   const todayMetrics = byVenture(db.metrics).slice(0, 3);
 
   return `
+    ${earlyAccessStrip()}
     <div class="hero">
       <svg class="hero-deco" viewBox="0 0 320 320" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1">
         ${[40, 72, 104, 136, 160].map((r) => `<circle cx="160" cy="160" r="${r}"/>`).join('')}
@@ -588,7 +598,7 @@ function viewToday() {
 const CAPTURE_TYPES = [
   { k: 'idea', label: 'Idea', icon: 'ideas', ph: 'Capture an idea…' },
   { k: 'task', label: 'Task', icon: 'tasks', ph: 'e.g. Send deck to investors tomorrow !p1' },
-  { k: 'event', label: 'Event', icon: 'schedule', ph: 'e.g. Meet psychologist for Lumid AI tomorrow 3pm' },
+  { k: 'event', label: 'Event', icon: 'schedule', ph: 'e.g. Coffee with Priya tomorrow 3pm' },
   { k: 'note', label: 'Note', icon: 'notes', ph: 'Note title…' },
   { k: 'decision', label: 'Decision', icon: 'decisions', ph: 'We decided to…' },
   { k: 'link', label: 'Link', icon: 'resources', ph: 'Paste a reel, YouTube or article link' },
@@ -599,7 +609,7 @@ function captureBox() {
   const extras = [...tags, ['today', 'Today', ''], ['tomorrow', 'Tomorrow', ''], ['at 10am', '10am', ''], ['!p1', 'Urgent', 'data-tone="danger"']];
   return `<form class="capture capture-box" data-form="capture">
       <input type="text" name="q" placeholder="${CAPTURE_TYPES[0].ph}" autocomplete="off" enterkeyhint="done" aria-label="Quick capture">
-      <button class="icon-btn bare mic-btn" type="button" data-action="voice" aria-label="Speak to capture" aria-pressed="false">${icon('mic')}</button>
+      ${SpeechRec || labsOn() ? `<button class="icon-btn bare mic-btn" type="button" data-action="voice" aria-label="Speak to capture" aria-pressed="false">${icon('mic')}</button>` : ''}
       <button class="btn" type="submit" aria-label="Capture">${icon('bolt')}</button>
     </form>
     <div class="pills" role="group" aria-label="What are you capturing?">
@@ -1271,20 +1281,25 @@ function viewSettings() {
   const counts = VIEWS.filter((v) => v.col).map((v) => `${db[v.col].length} ${v.label.toLowerCase()}`).join(' · ');
   return `<div class="grid two">
     <div class="card">
-      <div class="card-head"><h3>Ventures</h3></div>
-      <p class="small muted">Your companies & workstreams. Comma-separated. Use <code>#lastword</code> in quick capture to tag.</p>
+      <div class="card-head"><h3>Your projects</h3></div>
+      <p class="small muted">Companies, products or workstreams — comma-separated. Use <code>#lastword</code> in quick capture to tag.</p>
       <form data-form="ventures" class="capture">
         <input type="text" name="ventures" value="${esc(db.ventures.join(', '))}" aria-label="Ventures">
         <button class="btn" type="submit">Save</button>
       </form>
     </div>
-    <div class="card">
+    ${labsOn() ? `<div class="card">
       <div class="card-head">${appIcon('sparkle', '', 'sparkle')}<h3>AI assistant</h3></div>
       ${aiCard()}
     </div>
     <div class="card">
       <div class="card-head"><h3>☁️ Cloud sync</h3></div>
       ${cloudCard()}
+    </div>` : ''}
+    <div class="card">
+      <div class="card-head"><h3>Feedback & privacy</h3></div>
+      <p class="small muted">Lumid HQ is in early access. Your notes stay in this browser — nothing is sent to our servers.</p>
+      <div class="row"><a class="btn" href="${LAUNCH.feedbackUrl}">Send feedback</a><a class="btn ghost" href="${LAUNCH.privacyUrl}" target="_blank" rel="noopener">Privacy</a></div>
     </div>
     <div class="card">
       <div class="card-head"><h3>Backup</h3></div>
@@ -1526,7 +1541,7 @@ const ACTIONS = {
   'ai-test': async (el) => {
     el.disabled = true;
     try {
-      const { items } = await aiOrganize({ text: 'Call Arjun tomorrow at 3pm about the Lumid AI launch, and idea: a voice mode for Lumid Studio' });
+      const { items } = await aiOrganize({ text: 'Call Arjun tomorrow at 3pm about the launch, and idea: a referral program' });
       toast(`AI works ✓ — found ${items.length} items`);
     } catch (err) { toast(`AI: ${err.message}`); }
     el.disabled = false;
@@ -1535,7 +1550,7 @@ const ACTIONS = {
   'cloud-disconnect': () => { if (confirm('Disconnect cloud sync on this device? Your data stays here and in the cloud.')) cloud.disconnect(); },
   demo: () => {
     if (!confirm('Replace current data with demo data?')) return;
-    db = seed(); store.save(); render();
+    db = seed(db.ventures.filter((v) => v !== 'General')); store.save(); render();
   },
 };
 
@@ -1686,6 +1701,7 @@ document.addEventListener('submit', (e) => {
       break;
     }
     case 'ai-review': saveAiReview(form); break;
+    case 'welcome': finishWelcome(form); break;
     case 'ai-config': {
       const fd = new FormData(form);
       Object.assign(ai.cfg, { provider: fd.get('provider'), model: String(fd.get('model')).trim(), key: String(fd.get('key')).trim(), auto: fd.get('auto') === 'on' });
@@ -1749,7 +1765,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Sync across tabs
-window.addEventListener('storage', (e) => { if (e.key === STORE_KEY) { db = store.load(); render(); } });
+window.addEventListener('storage', (e) => { if (e.key === STORE_KEY) { db = store.load() || emptyDb(); render(); } });
 
 /* ---------- Cloud sync (optional, Supabase) ---------- */
 // Local-first: localStorage is the source of truth on each device; the whole
@@ -2244,6 +2260,50 @@ function aiCard() {
     </form>`;
 }
 
+/* ---------- Public launch: labs flag, early access, welcome ---------- */
+function labsOn() {
+  try { if (localStorage.getItem(LABS_KEY) === '1') return true; } catch {}
+  return ai.ready || cloud.configured;
+}
+
+const launchMeta = {
+  get() { try { return JSON.parse(localStorage.getItem(META_KEY)) || {}; } catch { return {}; } },
+  set(patch) { try { localStorage.setItem(META_KEY, JSON.stringify({ ...this.get(), ...patch })); } catch {} },
+};
+
+function earlyAccessStrip() {
+  if (labsOn()) return '';
+  const first = launchMeta.get().firstSeen || today();
+  const left = LAUNCH.earlyAccessDays - Math.round((fromISO(today()) - fromISO(first)) / 864e5);
+  const text = left > 0
+    ? `Early access · free for your first month — <b>${left} day${left === 1 ? '' : 's'} left</b>`
+    : 'Your free month is over — thanks for being early. Pro is coming soon.';
+  return `<div class="early-strip"><span>${text}</span><a href="${LAUNCH.feedbackUrl}">Send feedback</a></div>`;
+}
+
+function openWelcome() {
+  openModal('Welcome to Lumid HQ', `
+    <form id="welcome-form" data-form="welcome">
+      <p class="welcome-lead">Your command center for everything you're building — ideas, tasks, daily plans, deadlines and saved videos in one place.</p>
+      <div class="field"><label for="welcome-projects">What are you working on?</label>
+        <input type="text" id="welcome-projects" name="projects" placeholder="e.g. Acme, Side project" autocomplete="off">
+        <p class="small muted" style="margin:8px 0 0">Your companies or projects, separated by commas. You can change this later.</p></div>
+      <label class="row small"><input type="checkbox" class="check" name="sample" checked> Add sample data to explore</label>
+    </form>`,
+    `<a class="btn ghost" href="${LAUNCH.privacyUrl}" target="_blank" rel="noopener">Privacy</a><span class="spacer"></span><button class="btn" type="submit" form="welcome-form">Get started</button>`);
+}
+
+function finishWelcome(form) {
+  const names = [...new Set(form.elements.projects.value.split(',').map((x) => x.trim()).filter((x) => x && x.toLowerCase() !== 'general'))];
+  if (form.elements.sample.checked) db = seed(names);
+  else { db = emptyDb(); db.ventures = [...names, 'General']; }
+  launchMeta.set({ firstSeen: today() });
+  store.save();
+  closeModal();
+  render();
+  toast('You’re all set — capture your first idea');
+}
+
 /* ---------- Share target (installed PWA on Android) ---------- */
 function handleShare() {
   const params = new URLSearchParams(location.search);
@@ -2264,7 +2324,9 @@ const initial = location.hash.slice(1);
 if (VIEWS.some((v) => v.id === initial)) state.view = initial;
 handleShare();
 render();
-try { if (!localStorage.getItem(STORE_KEY)) saveLocal(); } catch {}
+if (new URLSearchParams(location.search).get('labs') === '1') { try { localStorage.setItem(LABS_KEY, '1'); } catch {} }
+if (!launchMeta.get().firstSeen) launchMeta.set({ firstSeen: today() });
+if (firstRun) { render(); openWelcome(); }
 cloud.init();
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && cloud.user) cloud.pull(); });
 window.addEventListener('online', () => { if (cloud.user) cloud.pull(); });
