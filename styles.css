@@ -709,3 +709,18 @@ body.gated .app, body.gated .bottom-nav, body.gated .fab { display: none !import
   .topbar h1 .brand-mark { display: none; }
   .trial-pill i { display: none; }
 }
+
+/* ---------- Install to home screen ---------- */
+.install-hero { display: flex; align-items: center; gap: 16px; padding: 16px; margin-bottom: 16px; border-radius: var(--r-md); background: var(--stone); }
+.install-hero img { flex: none; border-radius: 15px; box-shadow: 0 4px 12px rgba(0, 0, 0, .18); }
+.install-hero strong { display: block; font: 500 20px/1.2 var(--font-display); }
+.install-hero span { font-size: 13px; color: var(--muted); }
+.install-perks { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 8px; font-size: 15px; }
+.install-perks li { display: flex; align-items: center; gap: 8px; }
+.install-perks svg.i { width: 16px; height: 16px; color: var(--ok); flex: none; }
+.install-steps { list-style: none; counter-reset: step; padding: 0; margin: 8px 0 16px; display: grid; gap: 8px; }
+.install-steps li { counter-increment: step; display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--hairline); border-radius: var(--r-md); font-size: 15px; line-height: 1.35; }
+.install-steps li::before { content: counter(step); flex: none; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--text); color: var(--bg); font: 12px var(--font-mono); }
+.install-steps small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+.install-glyph { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; background: var(--fill); color: var(--blue); }
+.install-glyph svg.i { width: 22px; height: 22px; }
