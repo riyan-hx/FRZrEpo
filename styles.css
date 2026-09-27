@@ -666,3 +666,42 @@ body.gated .app, body.gated .bottom-nav, body.gated .fab { display: none !import
   .auth-brand { position: static; }
   .auth-main { padding: 24px; display: flex; justify-content: center; }
 }
+
+/* ---------- Trial countdown (sidebar card + mobile pill) ---------- */
+.side-trial {
+  margin-top: auto; display: flex; flex-direction: column; gap: 8px;
+  padding: 16px; border-radius: var(--r-md); background: var(--stone);
+}
+.side-trial[hidden] { display: none; }
+.side-trial:not([hidden]) + .side-search { margin-top: 8px; }
+.side-trial .label { font: 11px var(--font-mono); text-transform: uppercase; color: var(--muted); }
+.side-trial-days { font: 400 28px/1 var(--font-display); letter-spacing: -0.02em; }
+.side-trial-days span { font: 14px var(--font-text); color: var(--muted); letter-spacing: 0; }
+.side-trial-bar { height: 4px; border-radius: 2px; background: var(--hairline); overflow: hidden; }
+.side-trial-bar i { display: block; height: 100%; background: var(--coral); }
+.side-trial p { margin: 0; }
+.side-trial-clock { font-family: var(--font-mono); white-space: nowrap; }
+.side-trial .btn { width: 100%; }
+.trial-pill {
+  display: none; align-items: center; gap: 6px; height: 32px; padding: 0 12px; align-self: center;
+  border: 0; border-radius: var(--r-xl); background: var(--coral); color: #17171c;
+  font: 11px var(--font-mono); text-transform: uppercase; white-space: nowrap;
+}
+.trial-pill i { width: 6px; height: 6px; border-radius: 50%; background: #17171c; }
+.trial-pill.ended { background: var(--text); color: var(--bg); }
+.trial-pill.ended i { display: none; }
+@media (max-width: 900px) { .trial-pill:not([hidden]) { display: inline-flex; } }
+@media (max-width: 900px) {
+  .topbar h1 { min-width: 0; white-space: nowrap; overflow: hidden; }
+  .topbar-actions { flex: none; }
+}
+@media (max-width: 480px) {
+  .topbar h1 { font-size: 26px; }
+  .topbar-actions { gap: 4px; }
+  .trial-pill { padding: 0 10px; }
+}
+@media (max-width: 400px) {
+  .topbar h1 { font-size: 24px; }
+  .topbar h1 .brand-mark { display: none; }
+  .trial-pill i { display: none; }
+}

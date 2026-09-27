@@ -506,6 +506,7 @@ function renderNav() {
       ${v === 'All' ? '' : `<span class="dot" style="--c:${ventureColor(v)}"></span>`}${esc(v)}
     </button>`).join('');
   $('#venture-filter').hidden = state.view === 'settings';
+  renderTrial();
   $('#view-title').innerHTML = state.view === 'today'
     ? `<span class="brand-mark" aria-hidden="true">${icon('sparkle')}</span>The Forge`
     : esc(VIEWS.find((v) => v.id === state.view).label);
@@ -1921,6 +1922,7 @@ const cloud = {
     if (!this.user) return;
     const { data, error } = await this.client.from('subscriptions').select('*').eq('user_id', this.user.id).maybeSingle();
     this.plan = error ? null : data;
+    renderTrial();
   },
 
   // Mirrors public.has_access() in supabase/schema.sql — the database is the real gate.
@@ -2553,6 +2555,45 @@ function earlyAccessStrip() {
   return `<div class="early-strip"><span>${text}</span><a href="${LAUNCH.feedbackUrl}">Send feedback</a></div>`;
 }
 
+// Trial countdown: a card at the foot of the sidebar, a compact pill in the mobile top bar.
+function trialStatus() {
+  if (!cloud.user || !cloud.plan || cloud.isPaid) return null;
+  if (!cloud.hasAccess) return { ended: true };
+  if (cloud.plan.status !== 'trialing') return null;
+  return { ms: Math.max(0, Date.parse(cloud.plan.trial_ends_at) - Date.now()), end: new Date(cloud.plan.trial_ends_at) };
+}
+
+function countdown(ms) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${Math.floor(ms / DAY_MS)}d ${pad(Math.floor((ms % DAY_MS) / 36e5))}h ${pad(Math.floor((ms % 36e5) / 6e4))}m`;
+}
+
+function renderTrial() {
+  const card = $('#side-trial');
+  const pill = $('#trial-pill');
+  const t = trialStatus();
+  card.hidden = pill.hidden = !t;
+  if (!t) return;
+  pill.classList.toggle('ended', Boolean(t.ended));
+  if (t.ended) {
+    card.innerHTML = `<span class="label">Free trial</span>
+      <strong class="side-trial-days">Ended</strong>
+      <p class="small muted">Sync is paused. Everything on this device is safe.</p>
+      <button class="btn sm" data-action="upgrade">Upgrade · ${LAUNCH.price.monthly}/mo</button>`;
+    pill.textContent = 'Trial ended';
+    return;
+  }
+  const days = Math.floor(t.ms / DAY_MS);
+  const used = Math.min(100, Math.max(0, 100 - (t.ms / (LAUNCH.trialDays * DAY_MS)) * 100));
+  card.innerHTML = `<span class="label">Free Pro trial</span>
+    <strong class="side-trial-days">${days ? `${days} <span>day${days === 1 ? '' : 's'} left</span>` : 'Last day'}</strong>
+    <div class="side-trial-bar" role="progressbar" aria-label="Trial used" aria-valuenow="${Math.round(used)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${used}%"></i></div>
+    <p class="small muted">Ends ${t.end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · <span class="side-trial-clock">${countdown(t.ms)}</span></p>
+    <button class="btn sm" data-action="upgrade">Upgrade · ${LAUNCH.price.monthly}/mo</button>`;
+  pill.innerHTML = `<i></i>${days ? `${days}d left` : 'Last day'}`;
+  pill.setAttribute('aria-label', `Free trial: ${days ? `${days} day${days === 1 ? '' : 's'} left` : 'last day'} — upgrade`);
+}
+
 // Today's banner once accounts are live: trial countdown, paywall, or a sign-in nudge.
 function planStrip() {
   const strip = (text, action, label) => `<div class="early-strip"><span>${text}</span>${action ? `<button class="btn sm" data-action="${action}">${label}</button>` : ''}</div>`;
@@ -2790,6 +2831,7 @@ document.addEventListener('visibilitychange', async () => {
 });
 window.addEventListener('online', () => { if (cloud.user) cloud.pull(); });
 setInterval(() => { if (document.visibilityState === 'visible' && cloud.user && !cloud.cfg.dirty) cloud.pull(); }, 60000);
+setInterval(renderTrial, 60000);
 
 function loadScript(src, attrs = {}) {
   const el = Object.assign(document.createElement('script'), { src, defer: true, crossOrigin: 'anonymous' });
